@@ -1,0 +1,38 @@
+# Track Plan: [Feature Name]
+
+## Phase 1: Discovery & PRD
+- [ ] Task: Check for existing PRD or Create New PRD
+    - *Description:* Check the features directory for a relevant PRD. If none exists, use the `prd-creation` skill to generate one interactively.
+- [ ] Task: Conductor - User Manual Verification 'Discovery & PRD' (Protocol in workflow.md)
+
+---
+
+## Phase 2: Technical Planning
+- [ ] Task: Analyze Existing Codebase
+    - *Description:* Review relevant existing code to identify patterns, reusable components, and files that need modification.
+- [ ] Task: Generate Technical Plan
+    - *Description:* Use the `technical-planning` skill to create a detailed implementation plan.
+- [ ] Task: Conductor - User Manual Verification 'Technical Planning' (Protocol in workflow.md)
+
+---
+
+## Phase 3: Implementation Loop
+- [ ] Task: [Implementation Task 1]
+    - *Description:* [What this task involves]
+    - *Sub-tasks:*
+        - [ ] [Sub-task 1]
+        - [ ] [Sub-task 2]
+- [ ] Task: [Implementation Task 2]
+    - *Description:* [What this task involves]
+- [ ] Task: Conductor - User Manual Verification 'Implementation Loop' (Protocol in workflow.md)
+
+---
+
+## Phase 4: Review & Finalize
+- [ ] Task: Code Review
+    - *Description:* Use the `code-review` skill to review the implementation.
+- [ ] Task: Add Tests
+    - *Description:* Ensure adequate test coverage for new functionality.
+- [ ] Task: Documentation
+    - *Description:* Use the `documentation` skill to document the feature.
+- [ ] Task: Conductor - User Manual Verification 'Review & Finalize' (Protocol in workflow.md)

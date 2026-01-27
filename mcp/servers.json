@@ -1,0 +1,52 @@
+{
+  "$schema": "https://geminicli.com/schemas/mcp-servers.json",
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PAT}"
+      },
+      "description": "GitHub repository access - read/write files, PRs, issues"
+    },
+    "exa": {
+      "command": "npx", 
+      "args": ["-y", "exa-mcp-server"],
+      "env": {
+        "EXA_API_KEY": "${EXA_API_KEY}"
+      },
+      "description": "Exa AI search - deep web research for documentation and examples"
+    },
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@context7/mcp-server"],
+      "env": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      },
+      "description": "Context7 - library documentation lookup"
+    }
+  },
+  "_setup_instructions": {
+    "github": {
+      "steps": [
+        "1. Go to https://github.com/settings/tokens",
+        "2. Generate a new token (classic) with 'repo' scope",
+        "3. Replace ${GITHUB_PAT} with your token"
+      ]
+    },
+    "exa": {
+      "steps": [
+        "1. Sign up at https://exa.ai",
+        "2. Get your API key from the dashboard",
+        "3. Replace ${EXA_API_KEY} with your key"
+      ]
+    },
+    "context7": {
+      "steps": [
+        "1. Sign up at https://context7.com",
+        "2. Get your API key from settings",
+        "3. Replace ${CONTEXT7_API_KEY} with your key"
+      ]
+    }
+  }
+}

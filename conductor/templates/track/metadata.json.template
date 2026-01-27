@@ -1,0 +1,17 @@
+{
+  "track_id": "[feature_name]_[YYYYMMDD]",
+  "type": "feature",
+  "status": "new",
+  "created_at": "[ISO timestamp]",
+  "updated_at": "[ISO timestamp]",
+  "description": "[Brief description of the track]",
+  "phases": {
+    "discovery": "pending",
+    "planning": "pending",
+    "implementation": "pending",
+    "review": "pending"
+  },
+  "current_phase": "discovery",
+  "prd_file": null,
+  "plan_file": null
+}

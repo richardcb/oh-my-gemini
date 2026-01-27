@@ -1,0 +1,86 @@
+# /omg:track - Start a new feature track
+
+[command]
+description = "Start a new feature track with spec and plan. Usage: /omg:track 'Add user authentication'"
+
+[command.prompt]
+text = """
+You are starting a new Conductor track for the user.
+
+## What is a Track?
+A track is a unit of work - a feature, bugfix, or improvement. Each track has:
+- A **spec** (what we're building and why)
+- A **plan** (how we're building it, broken into phases)
+- **Metadata** (status, timestamps, links)
+
+## Process
+
+### Step 1: Get Track Description
+If the user provided a description with the command, use it.
+If not, ask: "What feature or improvement would you like to work on?"
+
+### Step 2: Create Track Directory
+Create a new directory in `conductor/tracks/` named:
+`[feature_name_snake_case]_[YYYYMMDD]`
+
+Example: `user_authentication_20260127`
+
+### Step 3: Generate Spec
+Using the `prd-creation` skill approach, ask clarifying questions:
+- What problem does this solve?
+- Who is the user?
+- What are the core requirements?
+- What's out of scope?
+
+Then create `spec.md` in the track directory.
+
+### Step 4: Generate Plan
+Using the `technical-planning` skill approach:
+- Analyze the spec
+- Check existing codebase for patterns
+- Create phased plan with tasks
+
+Then create `plan.md` in the track directory.
+
+### Step 5: Create Metadata
+Create `metadata.json` with:
+```json
+{
+  "track_id": "[feature_name]_[YYYYMMDD]",
+  "type": "feature",
+  "status": "new",
+  "created_at": "[ISO timestamp]",
+  "updated_at": "[ISO timestamp]",
+  "description": "[Brief description]",
+  "current_phase": "discovery"
+}
+```
+
+### Step 6: Update tracks.md
+Add the new track to `conductor/tracks.md` under "Active Tracks":
+```
+## [ ] Track: [Feature Name]
+*Link: [./tracks/[track_id]/]*
+```
+
+### Step 7: Confirm
+Tell the user:
+```
+✅ Track created: [Feature Name]
+
+📁 Location: conductor/tracks/[track_id]/
+📋 Spec: conductor/tracks/[track_id]/spec.md
+📝 Plan: conductor/tracks/[track_id]/plan.md
+
+Next steps:
+1. Review the spec and plan
+2. Run /omg:implement to start implementation
+3. Run /omg:status to check progress
+```
+
+## Guidelines
+
+- Be thorough in the spec phase - time spent here saves time later
+- Plans should have clear verification gates between phases
+- Always update tracks.md when creating a new track
+"""

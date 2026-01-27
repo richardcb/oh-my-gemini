@@ -1,0 +1,102 @@
+# /omg:conductor-setup - Initialize Conductor workflow in your project
+
+[command]
+description = "Initialize the Conductor workflow for Context-Driven Development."
+
+[command.prompt]
+text = """
+You are setting up Conductor mode for Context-Driven Development.
+
+## What is Conductor?
+Conductor is a workflow system that ensures you plan before you build:
+- **Product context** - What is this project?
+- **Tech stack** - What technologies do we use?
+- **Workflow** - How do we work?
+- **Tracks** - What are we building?
+
+## Setup Process
+
+### Step 1: Create Directory Structure
+Create the `conductor/` directory with:
+```
+conductor/
+├── product.md
+├── tech-stack.md
+├── workflow.md
+├── product-guidelines.md (optional)
+├── tracks.md
+├── code_styleguides/
+│   └── general.md
+└── tracks/
+```
+
+### Step 2: Gather Product Context
+Ask the user:
+1. "What is this project? (one sentence)"
+2. "Who are the main users?"
+3. "What problem does it solve?"
+
+Generate `conductor/product.md` from their answers.
+
+### Step 3: Detect/Define Tech Stack
+Examine the project to detect:
+- Languages (package.json, requirements.txt, go.mod, etc.)
+- Frameworks
+- Database
+- Hosting
+
+Ask user to confirm/correct, then generate `conductor/tech-stack.md`.
+
+### Step 4: Set Up Workflow
+Copy the workflow template to `conductor/workflow.md`.
+
+Ask if they want to customize:
+- Commit strategy
+- Testing requirements
+- Phase structure
+
+### Step 5: Product Guidelines (Optional)
+Ask: "Do you have product/design guidelines? [Y]es / [S]kip"
+
+If yes, ask about:
+- Tone and voice
+- Visual style
+- Interaction patterns
+
+Generate `conductor/product-guidelines.md` or skip.
+
+### Step 6: Code Style Guides
+Copy `general.md` to `conductor/code_styleguides/`.
+
+Ask: "Do you have language-specific style guides to add? [Y]es / [S]kip"
+
+If yes, help them create additional styleguide files.
+
+### Step 7: Initialize Tracks
+Create empty `conductor/tracks.md` and `conductor/tracks/` directory.
+
+### Step 8: Confirm
+```
+✅ Conductor initialized!
+
+Created:
+- conductor/product.md
+- conductor/tech-stack.md  
+- conductor/workflow.md
+- conductor/tracks.md
+- conductor/code_styleguides/general.md
+
+Next steps:
+1. Review and refine the generated files
+2. Run /omg:track "your first feature" to start planning
+3. Run /omg:status to see your project state
+
+Tip: The conductor/ files are meant to be edited! Customize them to match your workflow.
+```
+
+## Guidelines
+- Detect as much as possible from the project
+- Ask for confirmation rather than making assumptions
+- Keep the generated content concise but useful
+- Explain what each file is for
+"""

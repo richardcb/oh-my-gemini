@@ -1,0 +1,32 @@
+{
+  "name": "oh-my-gemini",
+  "version": "0.1.0",
+  "description": "Multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power.",
+  "author": "richardcb",
+  "repository": "https://github.com/richardcb/oh-my-gemini",
+  "license": "MIT",
+  "keywords": [
+    "gemini-cli",
+    "multi-agent",
+    "orchestration",
+    "conductor",
+    "ai-agents",
+    "agentic-coding"
+  ],
+  "engines": {
+    "gemini-cli": ">=0.25.0"
+  },
+  "commands": [
+    "commands/omg"
+  ],
+  "agents": [
+    "agents"
+  ],
+  "skills": [
+    "skills"
+  ],
+  "experimental": {
+    "enableAgents": true,
+    "skills": true
+  }
+}

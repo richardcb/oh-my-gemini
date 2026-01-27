@@ -1,0 +1,84 @@
+# Project Context
+
+This file provides context to Gemini CLI agents about this project. Keep it accurate and up-to-date.
+
+## Project Overview
+
+**Name:** [Project Name]
+**Description:** [Brief description of what this project does]
+**Status:** [Active development / Maintenance / etc.]
+
+---
+
+## Quick Reference
+
+### Key Commands
+```bash
+# Start development
+[command]
+
+# Run tests
+[command]
+
+# Build for production
+[command]
+```
+
+### Important Directories
+- `src/` - [Description]
+- `tests/` - [Description]
+- `docs/` - [Description]
+
+---
+
+## Tech Stack Summary
+
+- **Language:** [e.g., TypeScript 5.x]
+- **Runtime:** [e.g., Node.js 20.x / Bun 1.x]
+- **Framework:** [e.g., React, Hono, etc.]
+- **Database:** [e.g., PostgreSQL]
+
+---
+
+## Coding Conventions
+
+### Style
+- [Key style guideline]
+- [Key style guideline]
+
+### Patterns to Follow
+- [Pattern 1]: [When to use]
+- [Pattern 2]: [When to use]
+
+### Patterns to Avoid
+- [Anti-pattern 1]: [Why to avoid]
+
+---
+
+## Agent Instructions
+
+### For @researcher
+- Check [specific docs] for [topic]
+- Prefer [sources] over [other sources]
+
+### For @architect
+- Consider [constraint] when designing
+- Follow [existing pattern] for [type of feature]
+
+### For @executor
+- Run [command] after changes to [area]
+- Update [file] when modifying [area]
+
+---
+
+## Current Focus
+
+### Active Work
+- [Current feature/track being worked on]
+
+### Known Issues
+- [Issue to be aware of]
+
+---
+
+*This file is read by Gemini CLI agents. Keep it accurate and up-to-date.*

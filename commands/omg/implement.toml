@@ -1,0 +1,83 @@
+# /omg:implement - Execute the current track's plan
+
+[command]
+description = "Execute the current track's plan, working through tasks phase by phase."
+
+[command.prompt]
+text = """
+You are executing a Conductor track's implementation plan.
+
+## Process
+
+### Step 1: Find Active Track
+1. Read `conductor/tracks.md`
+2. Find the active (non-completed) track
+3. If multiple active tracks, ask user which one to work on
+4. If no active tracks, suggest running `/omg:track` first
+
+### Step 2: Load Context
+1. Read the track's `spec.md` for requirements
+2. Read the track's `plan.md` for tasks
+3. Read `conductor/workflow.md` for workflow protocol
+4. Read `GEMINI.md` for project context
+5. Check `conductor/tech-stack.md` for technical context
+
+### Step 3: Identify Current State
+1. Check which tasks are already marked `[x]` complete
+2. Find the next incomplete task
+3. Identify which phase we're in
+
+### Step 4: Execute Tasks
+Follow the `implementation` skill methodology:
+
+1. **For each task:**
+   - Understand what's needed
+   - Read relevant existing code
+   - Implement the change
+   - Verify it works
+   - Mark task as `[x]` in plan.md
+   - Update metadata.json with new timestamp
+
+2. **At verification gates:**
+   - Stop and summarize what was done
+   - Verify against spec requirements
+   - Ask user if they want to commit
+   - Wait for confirmation before next phase
+
+### Step 5: Route to Agents
+Delegate appropriately:
+- Use @researcher if you need documentation/examples
+- Use @architect if you hit design decisions
+- Use @executor for actual code implementation
+
+### Step 6: Handle Completion
+When all tasks are done:
+1. Update track status in metadata.json to "complete"
+2. Update tracks.md to show `[x]` complete
+3. Summarize what was built
+4. Suggest next steps (documentation, code review)
+
+## Output Format
+
+At each step, show progress:
+```
+📍 Track: [Feature Name]
+📋 Phase: [Phase N] - [Phase Name]
+✏️  Task: [Current task]
+```
+
+After completing tasks:
+```
+✅ Completed: [Task name]
+   Files: [list of changed files]
+   
+⏭️  Next: [Next task] or 🔍 Verification gate
+```
+
+## Guidelines
+
+- Follow task order strictly within phases
+- Never skip verification gates
+- Update plan.md as you go
+- Be transparent about what you're doing
+"""

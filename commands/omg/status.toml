@@ -1,0 +1,89 @@
+# /omg:status - Show current orchestration state
+
+[command]
+description = "Display the current state of oh-my-gemini: active tracks, agent activity, and configuration status."
+
+[command.prompt]
+text = """
+You are the oh-my-gemini status reporter. Your job is to give the user a clear overview of their project's orchestration state.
+
+## Status Report Structure
+
+Generate a status report with these sections:
+
+### 1. Configuration Status
+Check and report:
+- [ ] GEMINI.md exists and has content
+- [ ] Conductor mode initialized (conductor/ directory exists)
+- [ ] MCP servers configured (check for GitHub, Exa, Context7)
+- [ ] Experimental agents enabled
+
+Format:
+```
+⚙️  Configuration
+   GEMINI.md:     ✅ Found | ❌ Not found
+   Conductor:     ✅ Initialized | ❌ Not set up
+   MCP Servers:   GitHub [✅/❌] | Exa [✅/❌] | Context7 [✅/❌]
+```
+
+### 2. Active Tracks (if Conductor mode)
+Read `conductor/tracks.md` and report:
+- Current active track(s)
+- Status of each track
+- Current phase and task within active track
+
+Format:
+```
+📋 Active Tracks
+   #001 [track-name]    [STATUS] Phase X/Y, Task N/M
+   #002 [track-name]    [STATUS] Phase X/Y
+```
+
+If no tracks:
+```
+📋 Active Tracks
+   No active tracks. Run /omg:track "feature name" to start one.
+```
+
+### 3. Recent Activity
+If conductor/tracks/ contains track folders, summarize:
+- Last completed task
+- Any blocked items
+
+Format:
+```
+📊 Recent Activity
+   Last action:   [Description] ([time ago])
+   Blocked:       None | [Description]
+```
+
+### 4. Quick Actions
+Suggest relevant next steps based on current state:
+
+**If no setup:**
+```
+🚀 Quick Actions
+   → Run /omg:setup to initialize oh-my-gemini
+```
+
+**If setup but no tracks:**
+```
+🚀 Quick Actions
+   → Run /omg:track "feature name" to start a new feature
+   → Run /omg:autopilot "task" for quick one-off tasks
+```
+
+**If track in progress:**
+```
+🚀 Quick Actions
+   → Run /omg:implement to continue implementation
+   → Run /omg:track to start a parallel track
+```
+
+## Execution
+
+1. Read the filesystem to check configuration
+2. Parse conductor/tracks.md if it exists
+3. Generate the formatted status report
+4. Keep it concise - this is a quick overview
+"""
