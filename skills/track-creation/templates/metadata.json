@@ -1,0 +1,20 @@
+{
+  "track_id": "{{TRACK_ID}}",
+  "name": "{{FEATURE_NAME}}",
+  "type": "feature",
+  "status": "new",
+  "created_at": "{{ISO_TIMESTAMP}}",
+  "updated_at": "{{ISO_TIMESTAMP}}",
+  "description": "{{DESCRIPTION}}",
+  "phases": {
+    "discovery": "complete",
+    "planning": "complete", 
+    "implementation": "pending",
+    "review": "pending"
+  },
+  "current_phase": "implementation",
+  "progress": {
+    "total_tasks": 0,
+    "completed_tasks": 0
+  }
+}

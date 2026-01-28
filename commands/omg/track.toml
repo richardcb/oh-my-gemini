@@ -7,6 +7,18 @@ description = "Start a new feature track with spec and plan. Usage: /omg:track '
 text = """
 You are starting a new Conductor track for the user.
 
+## IMPORTANT: Activate the track-creation skill first
+
+Before proceeding, you MUST activate the `track-creation` skill using the activate_skill tool.
+This skill contains the templates you need to create properly structured track files.
+
+Once activated, you will have access to read:
+- templates/spec.md - The specification template
+- templates/plan.md - The implementation plan template
+- templates/metadata.json - The metadata template
+
+Read these templates and use their structure when creating the track files.
+
 ## Current Project State
 
 ### Existing Tracks
