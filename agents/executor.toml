@@ -20,7 +20,7 @@ tool_sandbox = true  # Run with filtered tool permissions
 max_iterations = 20  # Limit to prevent runaway execution
 
 [agent.config]
-model = "gemini-2.5-flash"  # Flash for fast execution
+model = "gemini-3-flash-preview"  # Flash for fast execution
 tools = ["read_file", "write_file", "edit_file", "run_shell_command", "list_dir"]
 
 # Tools this agent is allowed to use (for future sandboxing)
