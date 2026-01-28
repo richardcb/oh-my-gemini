@@ -14,7 +14,7 @@ We follow a strict, linear "Docs-First" methodology. **Do not write code** until
    - User Stories: "As a [role], I want to [action]..."
    - Business Invariants: Rules that must never be broken
    - Failure States: What happens when things go wrong?
-3. **Generate PRD:** Create the PRD using the `prd-creation` skill.
+3. **Generate PRD:** Use the `prd-creation` skill.
 
 ### Phase 2: Technical Planning
 **Trigger:** A PRD exists but no task list exists.
@@ -56,7 +56,11 @@ For each major phase in a plan, the final task must be a manual verification ste
 **Protocol:**
 1. Summarize the work done in the phase
 2. Verify against the PRD/Spec requirements
-3. Ensure all tests pass
+3. Run tests and show results:
+   ```bash
+   npm test 2>&1 | tail -20
+   npm run typecheck 2>&1 | tail -10
+   ```
 4. Ask user: "Would you like to commit these changes?"
 5. Wait for confirmation before proceeding to next phase
 
@@ -67,29 +71,41 @@ For each major phase in a plan, the final task must be a manual verification ste
 ### Commit Messages
 Follow conventional commits:
 ```
-feat: add user authentication
-fix: handle null response from API
-docs: update README with new feature
-refactor: extract validation logic
-test: add unit tests for auth module
+feat(scope): add user authentication
+fix(scope): handle null response from API
+docs(scope): update README with new feature
+refactor(scope): extract validation logic
+test(scope): add unit tests for auth module
 ```
 
 ### Commit Frequency
 - Commit after each completed phase (at verification gates)
 - Commit before switching context
 - Never commit broken code to main
+- Use the `git-commit` skill for intelligent messages
+
+---
+
+## Persistence Mode (Ralph)
+
+When persistence mode is active:
+- Don't give up after first failure
+- Try alternative approaches
+- Track attempt count
+- Escalate after 5 consecutive failures
+- Use the `persistence` skill
 
 ---
 
 ## Agent Guidelines
 
-### When to Use Each Agent
+### When to Use Each Agent Mode
 - **@researcher**: Before starting unfamiliar work, need external documentation
 - **@architect**: When design decisions are needed, complex bugs
 - **@executor**: When spec is clear and it's time to code
 
-### Context Handoff
-When delegating between agents:
+### Context Handoff Between Modes
+When switching modes:
 1. Summarize relevant context
 2. Link to specific files/sections
 3. State expected output clearly

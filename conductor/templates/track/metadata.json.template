@@ -1,17 +1,32 @@
 {
-  "track_id": "[feature_name]_[YYYYMMDD]",
+  "track_id": "{{TRACK_ID}}",
+  "name": "{{FEATURE_NAME}}",
   "type": "feature",
   "status": "new",
-  "created_at": "[ISO timestamp]",
-  "updated_at": "[ISO timestamp]",
-  "description": "[Brief description of the track]",
+  "created_at": "{{ISO_TIMESTAMP}}",
+  "updated_at": "{{ISO_TIMESTAMP}}",
+  "description": "{{DESCRIPTION}}",
   "phases": {
-    "discovery": "pending",
-    "planning": "pending",
+    "discovery": "complete",
+    "planning": "complete",
     "implementation": "pending",
     "review": "pending"
   },
-  "current_phase": "discovery",
-  "prd_file": null,
-  "plan_file": null
+  "current_phase": "implementation",
+  "current_task": null,
+  "progress": {
+    "total_tasks": 0,
+    "completed_tasks": 0,
+    "percentage": 0
+  },
+  "files": {
+    "spec": "spec.md",
+    "plan": "plan.md",
+    "prd": null
+  },
+  "git": {
+    "branch": null,
+    "commits": []
+  },
+  "notes": []
 }

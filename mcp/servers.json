@@ -7,7 +7,8 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PAT}"
       },
-      "description": "GitHub repository access - read/write files, PRs, issues"
+      "description": "GitHub repository access - read/write files, PRs, issues",
+      "trust": true
     },
     "exa": {
       "command": "npx", 
@@ -15,7 +16,8 @@
       "env": {
         "EXA_API_KEY": "${EXA_API_KEY}"
       },
-      "description": "Exa AI search - deep web research for documentation and examples"
+      "description": "Exa AI search - deep web research for documentation and examples",
+      "trust": true
     },
     "context7": {
       "command": "npx",
@@ -23,30 +25,41 @@
       "env": {
         "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
       },
-      "description": "Context7 - library documentation lookup"
+      "description": "Context7 - library documentation lookup",
+      "trust": true
     }
   },
   "_setup_instructions": {
     "github": {
+      "required_for": ["@researcher file access", "PR creation", "issue management"],
       "steps": [
         "1. Go to https://github.com/settings/tokens",
         "2. Generate a new token (classic) with 'repo' scope",
-        "3. Replace ${GITHUB_PAT} with your token"
+        "3. Add to your environment: export GITHUB_PAT=your_token",
+        "4. Or add to .gemini/settings.json mcpServers section"
       ]
     },
     "exa": {
+      "required_for": ["@researcher web search", "documentation lookup", "example finding"],
       "steps": [
         "1. Sign up at https://exa.ai",
         "2. Get your API key from the dashboard",
-        "3. Replace ${EXA_API_KEY} with your key"
+        "3. Add to your environment: export EXA_API_KEY=your_key"
       ]
     },
     "context7": {
+      "required_for": ["Library documentation", "API reference lookup"],
       "steps": [
         "1. Sign up at https://context7.com",
         "2. Get your API key from settings",
-        "3. Replace ${CONTEXT7_API_KEY} with your key"
+        "3. Add to your environment: export CONTEXT7_API_KEY=your_key"
       ]
     }
+  },
+  "_usage_notes": {
+    "agent_integration": "These MCP servers enhance agent capabilities:",
+    "researcher": "Uses exa for web search, github for repo exploration",
+    "architect": "Uses context7 for library docs when designing",
+    "executor": "Uses github for reading existing code patterns"
   }
 }

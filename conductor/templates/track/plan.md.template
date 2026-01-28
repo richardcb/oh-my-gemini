@@ -1,38 +1,168 @@
-# Track Plan: [Feature Name]
+# Track Plan: {{FEATURE_NAME}}
 
-## Phase 1: Discovery & PRD
-- [ ] Task: Check for existing PRD or Create New PRD
-    - *Description:* Check the features directory for a relevant PRD. If none exists, use the `prd-creation` skill to generate one interactively.
-- [ ] Task: Conductor - User Manual Verification 'Discovery & PRD' (Protocol in workflow.md)
-
----
-
-## Phase 2: Technical Planning
-- [ ] Task: Analyze Existing Codebase
-    - *Description:* Review relevant existing code to identify patterns, reusable components, and files that need modification.
-- [ ] Task: Generate Technical Plan
-    - *Description:* Use the `technical-planning` skill to create a detailed implementation plan.
-- [ ] Task: Conductor - User Manual Verification 'Technical Planning' (Protocol in workflow.md)
+> **Track ID:** {{TRACK_ID}}
+> **Spec:** [spec.md](./spec.md)
+> **Created:** {{DATE}}
+> **Status:** Planning
 
 ---
 
-## Phase 3: Implementation Loop
-- [ ] Task: [Implementation Task 1]
-    - *Description:* [What this task involves]
-    - *Sub-tasks:*
-        - [ ] [Sub-task 1]
-        - [ ] [Sub-task 2]
-- [ ] Task: [Implementation Task 2]
-    - *Description:* [What this task involves]
-- [ ] Task: Conductor - User Manual Verification 'Implementation Loop' (Protocol in workflow.md)
+## Overview
+
+{{OVERVIEW}}
+
+## Relevant Files
+
+### Files to Modify
+- `{{PATH}}` - {{REASON}}
+
+### Files to Create
+- `{{PATH}}` - {{PURPOSE}}
+
+### Reference Files
+- `{{PATH}}` - {{PATTERN_TO_FOLLOW}}
+
+---
+
+## Phase 1: Data Layer & Types
+
+{{PHASE_1_DESCRIPTION}}
+
+### Tasks
+
+- [ ] 1.0 **Define Types**
+  - [ ] 1.1 Create `{{PATH}}` with core types
+  - [ ] 1.2 Add validation schemas (Zod)
+  - [ ] 1.3 Export from index
+
+- [ ] 2.0 **Database Schema** (if applicable)
+  - [ ] 2.1 Create migration file
+  - [ ] 2.2 Add indexes for common queries
+  - [ ] 2.3 Run migration
+
+### Verification Criteria
+- [ ] Types compile without errors
+- [ ] Schema migration runs successfully
+- [ ] No circular dependencies
+
+- [ ] Task: Conductor - User Manual Verification 'Data Layer & Types'
+
+---
+
+## Phase 2: Backend API
+
+{{PHASE_2_DESCRIPTION}}
+
+### Tasks
+
+- [ ] 3.0 **Create {{ENDPOINT}} endpoint**
+  - [ ] 3.1 Create route handler
+  - [ ] 3.2 Add request validation
+  - [ ] 3.3 Implement business logic
+  - [ ] 3.4 Add error handling
+  - [ ] 3.5 Add response typing
+
+- [ ] 4.0 **Add {{SERVICE/MIDDLEWARE}}**
+  - [ ] 4.1 {{SUBTASK}}
+  - [ ] 4.2 {{SUBTASK}}
+
+### Verification Criteria
+- [ ] Endpoints respond correctly to valid requests
+- [ ] Endpoints return proper errors for invalid requests
+- [ ] All edge cases handled
+
+- [ ] Task: Conductor - User Manual Verification 'Backend API'
+
+---
+
+## Phase 3: Frontend Implementation
+
+{{PHASE_3_DESCRIPTION}}
+
+### Tasks
+
+- [ ] 5.0 **Create {{COMPONENT}}**
+  - [ ] 5.1 Create component file
+  - [ ] 5.2 Add TypeScript props interface
+  - [ ] 5.3 Implement UI
+  - [ ] 5.4 Add loading state
+  - [ ] 5.5 Add error state
+
+- [ ] 6.0 **Integrate into {{PAGE}}**
+  - [ ] 6.1 Add routing (if needed)
+  - [ ] 6.2 Connect to API
+  - [ ] 6.3 Handle state management
+
+### Verification Criteria
+- [ ] Component renders correctly
+- [ ] Loading states work
+- [ ] Error states work
+- [ ] Full user flow functions
+
+- [ ] Task: Conductor - User Manual Verification 'Frontend Implementation'
 
 ---
 
 ## Phase 4: Review & Finalize
-- [ ] Task: Code Review
-    - *Description:* Use the `code-review` skill to review the implementation.
-- [ ] Task: Add Tests
-    - *Description:* Ensure adequate test coverage for new functionality.
-- [ ] Task: Documentation
-    - *Description:* Use the `documentation` skill to document the feature.
-- [ ] Task: Conductor - User Manual Verification 'Review & Finalize' (Protocol in workflow.md)
+
+### Tasks
+
+- [ ] 7.0 **Testing**
+  - [ ] 7.1 Add unit tests for critical logic
+  - [ ] 7.2 Add integration tests for API
+  - [ ] 7.3 Add E2E test for main flow
+
+- [ ] 8.0 **Documentation**
+  - [ ] 8.1 Update API documentation
+  - [ ] 8.2 Add code comments
+  - [ ] 8.3 Update README if needed
+
+- [ ] 9.0 **Final Verification**
+  - [ ] 9.1 Verify against spec requirements
+  - [ ] 9.2 Check test coverage
+  - [ ] 9.3 Security review
+
+- [ ] Task: Conductor - User Manual Verification 'Review & Finalize'
+
+---
+
+## AI Guardrails Applied
+
+### Resource Efficiency
+- [ ] {{MITIGATION}}
+
+### Error Handling
+- [ ] {{ERROR_SCENARIO}}
+
+### Type Safety
+- [ ] {{BOUNDARY}}
+
+---
+
+## Dependencies
+
+### External Packages
+- {{PACKAGE}} - {{PURPOSE}}
+
+### Internal Modules
+- {{MODULE}} - {{USAGE}}
+
+---
+
+## Risks & Mitigations
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| {{RISK}} | {{LEVEL}} | {{LEVEL}} | {{STRATEGY}} |
+
+---
+
+## Estimated Effort
+
+| Phase | Time | Complexity |
+|-------|------|------------|
+| Phase 1 | {{TIME}} | {{LEVEL}} |
+| Phase 2 | {{TIME}} | {{LEVEL}} |
+| Phase 3 | {{TIME}} | {{LEVEL}} |
+| Phase 4 | {{TIME}} | {{LEVEL}} |
+| **Total** | **{{TIME}}** | |

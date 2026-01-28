@@ -10,90 +10,163 @@ description: |
 
 ## Goal
 
-To guide an AI assistant, acting as a **Senior Software Engineer**, in performing a thorough code review of a newly implemented feature. The review must be comprehensive, objective, and provide actionable feedback that is understandable to both technical and non-technical stakeholders.
+Perform a thorough code review of newly implemented features, comparing against the technical plan, checking for AI-specific risks, and providing actionable feedback.
 
 ## Process
 
-1. **Receive Context:** The user indicates a feature is ready for review and provides the technical plan that was used for implementation.
-2. **Analyze Code & Plan:** Perform a deep analysis comparing the final implementation against the technical plan. Review any new or modified tests.
-3. **Generate Review Document:** Using the structure below, generate a detailed code review.
-4. **Save Review:** Save as a review document in the features directory.
+### 1. Load Context
 
-## Review Structure
+```bash
+# Find the technical plan
+find . -name "tasks_*.md" -o -name "plan.md" 2>/dev/null | head -3
+
+# Find the PRD
+find . -name "*prd*.md" 2>/dev/null | head -3
+
+# Get list of changed files
+git diff --name-only HEAD~10 2>/dev/null | head -30
+
+# Get diff statistics
+git diff --stat HEAD~10 2>/dev/null | tail -10
+```
+
+### 2. Analyze Code vs Plan
+
+For each file changed:
+- Was it in the plan?
+- Does it match the planned approach?
+- Are there deviations?
+
+### 3. Perform Deep Review
+
+Check each area systematically.
+
+## Review Areas
 
 ### 1. Plan Implementation Assessment
-- **Correctness**: Was the technical plan implemented correctly and completely?
-- **Deviations**: Were there any logical deviations from the plan? If so, were they justified and well-executed?
+
+**Questions:**
+- Was the technical plan implemented correctly and completely?
+- Were there deviations? If so, were they justified?
+- Are all tasks marked complete actually complete?
 
 ### 2. Code Quality & Best Practices
-- **Bugs & Issues**: Are there obvious bugs, logic errors, or potential runtime issues?
-- **Readability & Style**: Is the code clean, readable, and consistent with existing codebase conventions?
-- **Local Idiom Compliance**: Does the code follow local conventions or use generic patterns inappropriately?
-- **Naming Consistency**: Check for generic identifiers or mismatched terminology
-- **Refactoring Opportunities**: Any over-engineering, code duplication, or files too large?
+
+**Bugs & Issues:**
+```bash
+# Check for obvious issues
+npm run typecheck 2>&1 | tail -30
+npm run lint 2>&1 | tail -30
+```
+
+**Readability:**
+- Is the code clean and readable?
+- Are names meaningful?
+- Is complexity appropriate?
+
+**Conventions:**
+- Does code follow local conventions?
+- Are patterns consistent with existing code?
 
 ### 3. AI-Specific Risk Assessment
 
-**Critical: AI-generated code has specific risk patterns. Check for these explicitly.**
+**CRITICAL: AI-generated code has specific risk patterns.**
 
-- **Logic & Correctness**: Deep-dive into algorithms. AI is more likely to make business logic errors. Does the logic hold for project-specific invariants?
-- **Resource Efficiency**: Check for "Naïve Resource Usage" - excessive I/O, unbatched database queries, repeated network calls
-- **Control Flow Safety**: Ensure essential safeguards like null checks and short-circuit conditions are present. AI code often looks structurally correct but omits safety paths.
+#### Logic & Correctness
+- Deep-dive into algorithms
+- Check business logic against PRD invariants
+- Verify edge cases are handled
+
+```bash
+# Look for common AI mistakes
+grep -rn "TODO\|FIXME\|XXX" src/ | head -20
+grep -rn "any" --include="*.ts" src/ | head -20
+```
+
+#### Resource Efficiency
+Check for "Naïve Resource Usage":
+- [ ] Excessive I/O operations
+- [ ] Unbatched database queries
+- [ ] Repeated network calls
+- [ ] N+1 query patterns
+
+```bash
+# Find potential N+1 patterns
+grep -rn "forEach.*await\|map.*await" src/ | head -10
+```
+
+#### Control Flow Safety
+- [ ] Null checks present
+- [ ] Short-circuit conditions exist
+- [ ] Error boundaries defined
 
 ### 4. Cross-Cutting Concerns
-- **Type Safety**: Is TypeScript used correctly? Any `any` types that should be specific?
-- **Error Handling**: Are errors properly caught and displayed meaningfully?
-- **Loading States**: Are loading states handled appropriately in UI?
-- **Input Validation**: Is request data validated before use?
+
+**Type Safety:**
+```bash
+# Check for 'any' types
+grep -rn ": any" --include="*.ts" src/ | head -10
+
+# Check for type assertions
+grep -rn "as any\|as unknown" --include="*.ts" src/ | head -10
+```
+
+**Error Handling:**
+```bash
+# Check for try-catch usage
+grep -rn "try {" --include="*.ts" src/ | wc -l
+grep -rn "catch" --include="*.ts" src/ | wc -l
+```
+
+**Loading States:**
+```bash
+# Check for loading state handling
+grep -rn "loading\|isLoading\|pending" --include="*.tsx" src/ | head -10
+```
+
+**Input Validation:**
+```bash
+# Check for Zod or validation
+grep -rn "z\.\|Zod\|validate\|schema" src/ | head -10
+```
 
 ### 5. Testing Assessment
-- **Test Existence**: Were new tests added for new functionality?
-- **Test Coverage**: Do tests cover critical logic paths, including edge cases?
-- **Test Quality**: Are tests well-written, clear, and non-brittle?
+
+```bash
+# Find test files
+find . -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | head -20
+
+# Check test coverage
+npm test -- --coverage 2>&1 | tail -30
+
+# Count test cases
+grep -rn "it(\|test(" --include="*.test.*" src/ | wc -l
+```
+
+**Questions:**
+- Were tests added for new functionality?
+- Do tests cover edge cases?
+- Are tests reliable (not flaky)?
 
 ### 6. Security & Performance
-- **Security**: Input validation, injection risks, XSS vulnerabilities, proper auth checks, data leakage in error messages
-- **Performance**: N+1 queries, inefficient algorithms, unnecessary re-renders, bundle size
 
-### 7. Final Assessment & Recommendations
+**Security Checks:**
+- [ ] Input validation on user data
+- [ ] No SQL injection risks
+- [ ] No XSS vulnerabilities
+- [ ] Proper auth checks
+- [ ] No secrets in code
 
-#### Overall Quality
-Rate using one of:
-- **Excellent**: Production-ready, minor or no issues
-- **Good with minor issues**: Ready with small fixes needed
-- **Needs changes**: Significant issues to address
-- **Needs major rework**: Fundamental issues requiring substantial changes
+```bash
+# Check for potential secrets
+grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
+```
 
-#### Business Impact Summary
-Explain in plain language:
-- What works well and can be relied upon
-- What risks exist if issues aren't fixed
-- What would happen if this shipped as-is
-
-#### AI-Aware Verification Checklist
-- [ ] **Negative Paths**: Are exception and error paths tested, or only the "happy path"?
-- [ ] **Concurrency**: Are concurrency primitives used correctly?
-- [ ] **Security Defaults**: Are sensitive items handled via approved patterns?
-- [ ] **Data Drift**: Does the code use outdated patterns from older training data?
-
-#### Actionable Feedback
-
-**Critical (Must Fix):**
-- Issues causing data loss, security vulnerabilities, or broken functionality
-
-**High Priority (Should Fix):**
-- Issues affecting user experience or maintainability significantly
-
-**Medium Priority (Fix Soon):**
-- Code quality improvements, minor bugs, technical debt
-
-**Low Priority (Nice to Have):**
-- Minor refactoring, style improvements, optimizations
-
-For each item, explain:
-1. What the issue is (plain language)
-2. Why it matters (business/user impact)
-3. How to fix it (specific, actionable guidance)
+**Performance Checks:**
+- [ ] No N+1 queries
+- [ ] Efficient algorithms
+- [ ] No unnecessary re-renders
+- [ ] Reasonable bundle size
 
 ## Output Format
 
@@ -104,61 +177,102 @@ For each item, explain:
 [2-3 sentence overview of the review findings]
 
 ## Plan Implementation: [✅ Complete / ⚠️ Partial / ❌ Incomplete]
-[Assessment of whether plan was followed]
 
-## Code Quality: [Rating]
-[Key observations]
+### Deviations from Plan
+| Planned | Actual | Justified? |
+|---------|--------|------------|
+| [Item] | [What was done] | [Yes/No + reason] |
+
+## Code Quality: [⭐⭐⭐⭐⭐ / ⭐⭐⭐⭐ / ⭐⭐⭐ / ⭐⭐ / ⭐]
+
+### Strengths
+- [Good thing 1]
+- [Good thing 2]
+
+### Areas for Improvement
+- [Issue 1]
+- [Issue 2]
 
 ## AI-Specific Risks
-[Findings from AI risk assessment]
+
+### Logic Correctness: [✅ / ⚠️ / ❌]
+[Findings from logic review]
+
+### Resource Efficiency: [✅ / ⚠️ / ❌]
+[Findings from efficiency review]
+
+### Control Flow Safety: [✅ / ⚠️ / ❌]
+[Findings from safety review]
 
 ## Testing: [Adequate / Needs Work / Missing]
-[Test coverage assessment]
+
+### Coverage
+- Statements: [X%]
+- Branches: [X%]
+- Functions: [X%]
+
+### Missing Tests
+- [Area needing tests]
 
 ## Security & Performance
-[Key findings]
+
+### Security: [✅ / ⚠️ / ❌]
+[Findings]
+
+### Performance: [✅ / ⚠️ / ❌]
+[Findings]
 
 ---
 
 ## Overall Assessment: [Excellent / Good / Needs Changes / Major Rework]
 
 ### Business Impact
-[Plain language explanation of what this means]
+[Plain language: what works, what risks exist, what happens if shipped as-is]
 
 ### Verification Checklist
-- [x/] Negative paths tested
-- [x/] Concurrency handled correctly
-- [x/] Security defaults used
-- [x/] No outdated patterns
+- [x/ ] Negative paths tested
+- [x/ ] Concurrency handled correctly
+- [x/ ] Security defaults used
+- [x/ ] No outdated patterns
 
 ---
 
 ## Action Items
 
-### Critical
-1. [Issue]: [Impact] → [Fix]
+### 🔴 Critical (Must Fix Before Merge)
+1. **[Issue]**
+   - Impact: [What could go wrong]
+   - Fix: [Specific guidance]
+   - File: `path/to/file.ts:line`
 
-### High Priority
-1. [Issue]: [Impact] → [Fix]
+### 🟠 High Priority (Should Fix)
+1. **[Issue]**
+   - Impact: [Effect on UX/maintainability]
+   - Fix: [Guidance]
 
-### Medium Priority
-1. [Issue]: [Impact] → [Fix]
+### 🟡 Medium Priority (Fix Soon)
+1. **[Issue]**
+   - Impact: [Technical debt]
+   - Fix: [Guidance]
 
-### Low Priority
-1. [Issue]: [Impact] → [Fix]
+### 🟢 Low Priority (Nice to Have)
+1. **[Issue]**
+   - Impact: [Minor improvement]
+   - Fix: [Guidance]
+
+---
+
+## Approval Status
+
+- [ ] **Approved** - Ready to merge
+- [ ] **Approved with Comments** - Can merge after addressing feedback
+- [ ] **Request Changes** - Must address critical/high items first
 ```
 
-## Target Audience
+## Guidelines
 
-The review is written for:
-- **Non-technical stakeholders**: Who need to understand what works and what doesn't
-- **The implementing developer**: Who needs clear, actionable guidance
-- **Future maintainers**: Who need to understand decisions and patterns
-
-## Tone & Style
-
-- **Be objective and constructive**: Point out issues clearly but without being harsh
+- **Be objective and constructive**: Point out issues clearly but helpfully
 - **Explain "why"**: Don't just say something is wrong, explain the impact
-- **Use plain language**: Avoid unnecessary jargon; explain technical terms when needed
-- **Be specific**: Give concrete examples and line numbers where relevant
+- **Use plain language**: Avoid unnecessary jargon
+- **Be specific**: Give concrete examples and line numbers
 - **Prioritize clearly**: Not all issues are equally important

@@ -1,11 +1,10 @@
 # Product Context
 
-This document defines what the project is, who it's for, and what it aims to achieve. Update this as the product evolves.
+This document defines what the project is, who it's for, and what it aims to achieve.
 
 ## Project Overview
 
 **Name:** [Project Name]
-
 **One-liner:** [One sentence description]
 
 **Description:**
@@ -15,15 +14,14 @@ This document defines what the project is, who it's for, and what it aims to ach
 
 ## Problem Statement
 
-[What problem does this project solve? Why does it matter? What happens if we don't solve it?]
+[What problem does this project solve? Why does it matter?]
 
 ---
 
 ## Target Users
 
 ### Primary Users
-- **[User Type 1]**: [Who they are and what they need]
-- **[User Type 2]**: [Who they are and what they need]
+- **[User Type]**: [Who they are and what they need]
 
 ### User Goals
 1. [What users want to accomplish]
@@ -39,11 +37,9 @@ This document defines what the project is, who it's for, and what it aims to ach
 
 ### Next Phase
 - [ ] [Goal 1]
-- [ ] [Goal 2]
 
 ### Long-term Vision
 - [ ] [Goal 1]
-- [ ] [Goal 2]
 
 ---
 
@@ -58,30 +54,14 @@ Things we're explicitly NOT trying to do:
 ## Key Features
 
 ### Implemented
-- **[Feature 1]**: [Brief description]
-- **[Feature 2]**: [Brief description]
+- **[Feature]**: [Brief description]
 
 ### Planned
-- **[Feature 3]**: [Brief description]
-- **[Feature 4]**: [Brief description]
+- **[Feature]**: [Brief description]
 
 ---
 
 ## Success Metrics
 
-How we know the product is successful:
 - [Metric 1]
 - [Metric 2]
-
----
-
-## Constraints
-
-### Business Constraints
-- [Constraint 1]
-
-### Technical Constraints
-- [Constraint 1]
-
-### Timeline Constraints
-- [Constraint 1]

@@ -7,6 +7,33 @@ description = "Start a new feature track with spec and plan. Usage: /omg:track '
 text = """
 You are starting a new Conductor track for the user.
 
+## Current Project State
+
+### Existing Tracks
+```
+!{cat conductor/tracks.md 2>/dev/null || echo "NO_TRACKS_FILE"}
+```
+
+### Track Directories
+```
+!{ls -la conductor/tracks/ 2>/dev/null || echo "NO_TRACKS_DIR"}
+```
+
+### Project Context
+```
+!{cat conductor/product.md 2>/dev/null | head -30 || echo "NO_PRODUCT_CONTEXT"}
+```
+
+### Tech Stack
+```
+!{cat conductor/tech-stack.md 2>/dev/null | head -30 || echo "NO_TECH_STACK"}
+```
+
+### Current Date
+```
+!{date +%Y%m%d}
+```
+
 ## What is a Track?
 A track is a unit of work - a feature, bugfix, or improvement. Each track has:
 - A **spec** (what we're building and why)
@@ -19,52 +46,112 @@ A track is a unit of work - a feature, bugfix, or improvement. Each track has:
 If the user provided a description with the command, use it.
 If not, ask: "What feature or improvement would you like to work on?"
 
-### Step 2: Create Track Directory
-Create a new directory in `conductor/tracks/` named:
+### Step 2: Generate Track ID
+Create a unique track ID using the format:
 `[feature_name_snake_case]_[YYYYMMDD]`
 
-Example: `user_authentication_20260127`
+Example: `user_authentication_20260128`
 
-### Step 3: Generate Spec
-Using the `prd-creation` skill approach, ask clarifying questions:
+### Step 3: Create Track Directory
+Create a new directory in `conductor/tracks/` with the track ID.
+
+### Step 4: Generate Spec (PRD-style)
+Ask clarifying questions to understand:
 - What problem does this solve?
 - Who is the user?
 - What are the core requirements?
 - What's out of scope?
 
-Then create `spec.md` in the track directory.
+Then create `spec.md` in the track directory using this structure:
 
-### Step 4: Generate Plan
-Using the `technical-planning` skill approach:
-- Analyze the spec
-- Check existing codebase for patterns
-- Create phased plan with tasks
+```markdown
+# Track Specification: [Feature Name]
 
-Then create `plan.md` in the track directory.
+## 1. Goal
+[Primary goal and problem being solved]
 
-### Step 5: Create Metadata
-Create `metadata.json` with:
+## 2. Core Requirements
+- [Requirement 1]
+- [Requirement 2]
+
+## 3. User Experience
+[How users will interact with this feature]
+
+## 4. Technical Constraints
+- Tech Stack: [From conductor/tech-stack.md]
+- Integration Points: [Systems this touches]
+
+## 5. Success Criteria
+- [ ] [Testable criterion 1]
+- [ ] [Testable criterion 2]
+
+## 6. Out of Scope
+- [Explicitly excluded items]
+
+## 7. Open Questions
+- [ ] [Question to resolve]
+```
+
+### Step 5: Generate Plan
+Analyze the spec and create `plan.md` with phases:
+
+```markdown
+# Track Plan: [Feature Name]
+
+## Phase 1: Data Layer & Types
+- [ ] Task description
+- [ ] Task: Conductor - User Manual Verification 'Data Layer'
+
+## Phase 2: Backend API
+- [ ] Task description
+- [ ] Task: Conductor - User Manual Verification 'Backend API'
+
+## Phase 3: Frontend Implementation
+- [ ] Task description
+- [ ] Task: Conductor - User Manual Verification 'Frontend'
+
+## Phase 4: Review & Finalize
+- [ ] Code review
+- [ ] Documentation
+- [ ] Task: Conductor - User Manual Verification 'Review'
+```
+
+### Step 6: Create Metadata
+Create `metadata.json`:
 ```json
 {
-  "track_id": "[feature_name]_[YYYYMMDD]",
+  "track_id": "[generated_id]",
   "type": "feature",
   "status": "new",
   "created_at": "[ISO timestamp]",
   "updated_at": "[ISO timestamp]",
   "description": "[Brief description]",
-  "current_phase": "discovery"
+  "current_phase": "discovery",
+  "phases": {
+    "discovery": "complete",
+    "planning": "complete",
+    "implementation": "pending",
+    "review": "pending"
+  }
 }
 ```
 
-### Step 6: Update tracks.md
-Add the new track to `conductor/tracks.md` under "Active Tracks":
-```
+### Step 7: Update tracks.md
+Add the new track to `conductor/tracks.md`:
+```markdown
 ## [ ] Track: [Feature Name]
+*ID: [track_id]*
 *Link: [./tracks/[track_id]/]*
+*Status: New*
 ```
 
-### Step 7: Confirm
-Tell the user:
+### Step 8: Verify & Confirm
+Verify files were created:
+```
+!{ls -la conductor/tracks/[track_id]/ 2>/dev/null}
+```
+
+Then tell the user:
 ```
 ✅ Track created: [Feature Name]
 
@@ -78,8 +165,8 @@ Next steps:
 3. Run /omg:status to check progress
 ```
 
-## Guidelines
-
+## Important Guidelines
+- Actually CREATE the files using write_file tool
 - Be thorough in the spec phase - time spent here saves time later
 - Plans should have clear verification gates between phases
 - Always update tracks.md when creating a new track

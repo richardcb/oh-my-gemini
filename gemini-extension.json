@@ -1,7 +1,7 @@
 {
   "name": "oh-my-gemini",
-  "version": "0.1.0",
-  "description": "Multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power.",
+  "version": "0.2.0",
+  "description": "Multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power. Now with persistence, intelligent routing, and SubAgent-ready architecture.",
   "author": "richardcb",
   "repository": "https://github.com/richardcb/oh-my-gemini",
   "license": "MIT",
@@ -11,7 +11,9 @@
     "orchestration",
     "conductor",
     "ai-agents",
-    "agentic-coding"
+    "agentic-coding",
+    "persistence",
+    "docs-first"
   ],
   "engines": {
     "gemini-cli": ">=0.25.0"
@@ -25,8 +27,50 @@
   "skills": [
     "skills"
   ],
+  "hooks": [
+    "hooks"
+  ],
   "experimental": {
     "enableAgents": true,
-    "skills": true
+    "skills": true,
+    "hooks": true
+  },
+  "configuration": {
+    "persistence": {
+      "description": "Enable persistence mode (ralph) for automatic retry",
+      "type": "boolean",
+      "default": true
+    },
+    "autoCheckpoint": {
+      "description": "Create git checkpoints before file changes",
+      "type": "boolean",
+      "default": true
+    },
+    "verifyAfterChanges": {
+      "description": "Run typecheck/lint after file changes",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "capabilities": {
+    "current": [
+      "docs-first-workflow",
+      "conductor-integration",
+      "skill-library",
+      "persistence-mode",
+      "git-hooks",
+      "verification-gates"
+    ],
+    "subagent-ready": [
+      "context-isolation",
+      "tool-sandboxing",
+      "parallel-execution",
+      "agent-routing"
+    ],
+    "planned": [
+      "ultrapilot-mode",
+      "swarm-mode",
+      "cost-optimization"
+    ]
   }
 }

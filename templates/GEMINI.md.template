@@ -37,6 +37,7 @@ This file provides context to Gemini CLI agents about this project. Keep it accu
 - **Runtime:** [e.g., Node.js 20.x / Bun 1.x]
 - **Framework:** [e.g., React, Hono, etc.]
 - **Database:** [e.g., PostgreSQL]
+- **Testing:** [e.g., Vitest, Jest]
 
 ---
 
@@ -55,19 +56,28 @@ This file provides context to Gemini CLI agents about this project. Keep it accu
 
 ---
 
-## Agent Instructions
+## oh-my-gemini Configuration
 
-### For @researcher
-- Check [specific docs] for [topic]
-- Prefer [sources] over [other sources]
+### Active Features
+- [x] Conductor workflow
+- [x] Persistence mode
+- [ ] Parallel execution (waiting for SubAgent)
 
-### For @architect
-- Consider [constraint] when designing
-- Follow [existing pattern] for [type of feature]
+### Agent Preferences
+- **@researcher**: Check [specific docs] for [topic]
+- **@architect**: Follow [existing pattern] for [type of feature]
+- **@executor**: Run [command] after changes to [area]
 
-### For @executor
-- Run [command] after changes to [area]
-- Update [file] when modifying [area]
+### Skills Enabled
+- prd-creation
+- technical-planning
+- implementation
+- code-review
+- documentation
+- persistence
+- git-commit
+- test-generation
+- debug-assistant
 
 ---
 
@@ -78,6 +88,16 @@ This file provides context to Gemini CLI agents about this project. Keep it accu
 
 ### Known Issues
 - [Issue to be aware of]
+
+---
+
+## Magic Keywords
+
+Use these prefixes for specific behaviors:
+- `autopilot:` - Full autonomous execution
+- `ralph:` - Persistence mode (don't give up)
+- `plan:` - Planning interview first
+- `eco:` - Token-efficient mode
 
 ---
 

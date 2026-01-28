@@ -1,42 +1,62 @@
-# /omg:status - Show current orchestration state
+# /omg:status - Show current orchestration state with real filesystem data
 
 [command]
 description = "Display the current state of oh-my-gemini: active tracks, agent activity, and configuration status."
 
 [command.prompt]
 text = """
-You are the oh-my-gemini status reporter. Your job is to give the user a clear overview of their project's orchestration state.
+You are the oh-my-gemini status reporter. Generate a comprehensive status report using the REAL data below.
+
+## Live Filesystem Data
+
+### GEMINI.md Check
+```
+!{cat GEMINI.md 2>/dev/null | head -50 || echo "NOT_FOUND: No GEMINI.md file"}
+```
+
+### Conductor Directory Check
+```
+!{ls -la conductor/ 2>/dev/null || echo "NOT_FOUND: No conductor directory"}
+```
+
+### Tracks Status
+```
+!{cat conductor/tracks.md 2>/dev/null || echo "NOT_FOUND: No tracks.md"}
+```
+
+### Active Track Details
+```
+!{find conductor/tracks -name "metadata.json" -exec cat {} \; 2>/dev/null || echo "NO_TRACKS"}
+```
+
+### Recent Git Activity
+```
+!{git log --oneline -5 2>/dev/null || echo "NOT_GIT: Not a git repository"}
+```
+
+### MCP Server Config
+```
+!{cat .gemini/settings.json 2>/dev/null | grep -A 20 "mcpServers" || echo "NO_MCP: No MCP servers configured"}
+```
 
 ## Status Report Structure
 
-Generate a status report with these sections:
+Based on the REAL data above, generate a status report:
 
 ### 1. Configuration Status
-Check and report:
-- [ ] GEMINI.md exists and has content
-- [ ] Conductor mode initialized (conductor/ directory exists)
-- [ ] MCP servers configured (check for GitHub, Exa, Context7)
-- [ ] Experimental agents enabled
-
-Format:
 ```
 ⚙️  Configuration
-   GEMINI.md:     ✅ Found | ❌ Not found
-   Conductor:     ✅ Initialized | ❌ Not set up
-   MCP Servers:   GitHub [✅/❌] | Exa [✅/❌] | Context7 [✅/❌]
+   GEMINI.md:     [✅ Found / ❌ Not found]
+   Conductor:     [✅ Initialized / ❌ Not set up]
+   MCP Servers:   [List configured servers]
+   Git Repo:      [✅ Yes / ❌ No]
 ```
 
-### 2. Active Tracks (if Conductor mode)
-Read `conductor/tracks.md` and report:
-- Current active track(s)
-- Status of each track
-- Current phase and task within active track
-
-Format:
+### 2. Active Tracks
+If conductor/tracks.md exists and has tracks:
 ```
 📋 Active Tracks
-   #001 [track-name]    [STATUS] Phase X/Y, Task N/M
-   #002 [track-name]    [STATUS] Phase X/Y
+   #001 [track-name]    [STATUS] Phase X/Y
 ```
 
 If no tracks:
@@ -46,24 +66,26 @@ If no tracks:
 ```
 
 ### 3. Recent Activity
-If conductor/tracks/ contains track folders, summarize:
-- Last completed task
-- Any blocked items
-
-Format:
 ```
 📊 Recent Activity
-   Last action:   [Description] ([time ago])
-   Blocked:       None | [Description]
+   Last commit:   [From git log]
+   Track status:  [From metadata.json]
 ```
 
 ### 4. Quick Actions
 Suggest relevant next steps based on current state:
 
-**If no setup:**
+**If no GEMINI.md:**
 ```
 🚀 Quick Actions
    → Run /omg:setup to initialize oh-my-gemini
+```
+
+**If no Conductor:**
+```
+🚀 Quick Actions
+   → Run /omg:conductor-setup to enable planning workflow
+   → Or use /omg:autopilot "task" for quick execution
 ```
 
 **If setup but no tracks:**
@@ -77,13 +99,8 @@ Suggest relevant next steps based on current state:
 ```
 🚀 Quick Actions
    → Run /omg:implement to continue implementation
-   → Run /omg:track to start a parallel track
+   → Run /omg:status to refresh this view
 ```
 
-## Execution
-
-1. Read the filesystem to check configuration
-2. Parse conductor/tracks.md if it exists
-3. Generate the formatted status report
-4. Keep it concise - this is a quick overview
+Keep the report concise - this is a quick overview, not a deep analysis.
 """

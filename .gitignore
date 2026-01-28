@@ -37,3 +37,10 @@ temp/
 *.key
 *.pem
 secrets/
+
+# Gemini CLI local state
+.gemini-swarm/
+*.checkpoint
+
+# oh-my-gemini local files (tracks are project-specific)
+# conductor/tracks/ should be committed, but you may want to gitignore WIP tracks

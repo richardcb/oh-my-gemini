@@ -1,13 +1,10 @@
 # Technology Stack
 
-This document defines the technical foundation of the project. Keep it updated as dependencies change.
+This document defines the technical foundation of the project.
 
 ## Languages
 
 ### Primary
-- **[Language]**: [Version] - [Where it's used]
-
-### Secondary
 - **[Language]**: [Version] - [Where it's used]
 
 ---
@@ -39,9 +36,6 @@ This document defines the technical foundation of the project. Keep it updated a
 ### Database
 - **[Database]**: [Purpose]
 
-### External Services
-- **[Service]**: [Purpose]
-
 ---
 
 ## Development Tools
@@ -49,32 +43,17 @@ This document defines the technical foundation of the project. Keep it updated a
 ### Package Manager
 - [npm/yarn/pnpm/bun]
 
-### Build Tools
-- [Tool]: [Purpose]
-
 ### Linting & Formatting
 - [Tool]: [Configuration]
 
 ---
 
-## Project Structure
-
-```
-project/
-├── src/           # [Description]
-├── tests/         # [Description]
-├── docs/          # [Description]
-└── ...
-```
-
----
-
 ## Naming Conventions
 
-- **Files**: [Convention, e.g., kebab-case]
-- **Components**: [Convention, e.g., PascalCase]
-- **Functions**: [Convention, e.g., camelCase]
-- **Constants**: [Convention, e.g., SCREAMING_SNAKE_CASE]
+- **Files**: [kebab-case / PascalCase / etc.]
+- **Components**: [PascalCase]
+- **Functions**: [camelCase]
+- **Constants**: [SCREAMING_SNAKE_CASE]
 
 ---
 
@@ -88,28 +67,7 @@ project/
 
 ### Error Handling
 - [How errors are structured]
-- [How errors are communicated]
 
 ### API Conventions
 - [HTTP method usage]
 - [Response format]
-- [Error response format]
-
----
-
-## Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| [VAR_NAME] | [Description] | Yes/No |
-
----
-
-## Dependencies
-
-### Adding Dependencies
-- [Process for adding new dependencies]
-
-### Updating Dependencies
-- [How often]
-- [Testing requirements]

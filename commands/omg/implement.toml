@@ -7,77 +7,152 @@ description = "Execute the current track's plan, working through tasks phase by 
 text = """
 You are executing a Conductor track's implementation plan.
 
+## Current State
+
+### Active Tracks
+```
+!{cat conductor/tracks.md 2>/dev/null || echo "NO_TRACKS"}
+```
+
+### Track Directories
+```
+!{ls -la conductor/tracks/ 2>/dev/null || echo "NO_TRACK_DIRS"}
+```
+
+### Find Active Track Metadata
+```
+!{find conductor/tracks -name "metadata.json" -exec echo "=== {} ===" \; -exec cat {} \; 2>/dev/null || echo "NO_METADATA"}
+```
+
+### Project Context
+```
+!{cat GEMINI.md 2>/dev/null | head -50 || echo "NO_GEMINI_MD"}
+```
+
+### Tech Stack
+```
+!{cat conductor/tech-stack.md 2>/dev/null | head -30 || echo "NO_TECH_STACK"}
+```
+
+### Git Status
+```
+!{git status --short 2>/dev/null | head -20 || echo "NOT_GIT"}
+```
+
 ## Process
 
-### Step 1: Find Active Track
-1. Read `conductor/tracks.md`
-2. Find the active (non-completed) track
-3. If multiple active tracks, ask user which one to work on
-4. If no active tracks, suggest running `/omg:track` first
+### Step 1: Identify Active Track
+From the metadata files above:
+1. Find tracks where `status` is NOT "complete"
+2. If multiple active tracks, ask user which one to work on
+3. If no active tracks, suggest running `/omg:track` first
 
-### Step 2: Load Context
-1. Read the track's `spec.md` for requirements
-2. Read the track's `plan.md` for tasks
-3. Read `conductor/workflow.md` for workflow protocol
-4. Read `GEMINI.md` for project context
-5. Check `conductor/tech-stack.md` for technical context
-
-### Step 3: Identify Current State
-1. Check which tasks are already marked `[x]` complete
-2. Find the next incomplete task
-3. Identify which phase we're in
-
-### Step 4: Execute Tasks
-Follow the `implementation` skill methodology:
-
-1. **For each task:**
-   - Understand what's needed
-   - Read relevant existing code
-   - Implement the change
-   - Verify it works
-   - Mark task as `[x]` in plan.md
-   - Update metadata.json with new timestamp
-
-2. **At verification gates:**
-   - Stop and summarize what was done
-   - Verify against spec requirements
-   - Ask user if they want to commit
-   - Wait for confirmation before next phase
-
-### Step 5: Route to Agents
-Delegate appropriately:
-- Use @researcher if you need documentation/examples
-- Use @architect if you hit design decisions
-- Use @executor for actual code implementation
-
-### Step 6: Handle Completion
-When all tasks are done:
-1. Update track status in metadata.json to "complete"
-2. Update tracks.md to show `[x]` complete
-3. Summarize what was built
-4. Suggest next steps (documentation, code review)
-
-## Output Format
-
-At each step, show progress:
+### Step 2: Load Track Context
+For the selected track, read:
 ```
-📍 Track: [Feature Name]
-📋 Phase: [Phase N] - [Phase Name]
-✏️  Task: [Current task]
+!{cat conductor/tracks/*/spec.md 2>/dev/null | head -100}
 ```
 
-After completing tasks:
 ```
-✅ Completed: [Task name]
-   Files: [list of changed files]
+!{cat conductor/tracks/*/plan.md 2>/dev/null}
+```
+
+### Step 3: Identify Current Task
+1. Parse the plan.md file
+2. Find the first task marked `[ ]` (incomplete)
+3. Identify which phase it's in
+
+### Step 4: Execute Task
+For each task:
+1. Understand what's needed from the task description
+2. Check existing code patterns:
+   ```
+   !{find src -name "*.ts" -o -name "*.js" 2>/dev/null | head -20}
+   ```
+3. Implement the change using appropriate tools
+4. Verify it works:
+   ```
+   !{npm test 2>&1 | tail -30 || echo "NO_TESTS"}
+   ```
+   ```
+   !{npm run lint 2>&1 | tail -20 || echo "NO_LINT"}
+   ```
+
+### Step 5: Update Status
+After completing a task:
+1. Mark it `[x]` in plan.md using str_replace
+2. Update metadata.json with new timestamp
+3. Show progress:
+   ```
+   📍 Track: [Feature Name]
+   📋 Phase: [Phase N] - [Phase Name]
+   ✅ Completed: [Task description]
+   ⏭️  Next: [Next task] or 🔍 Verification gate
+   ```
+
+### Step 6: Handle Verification Gates
+When you reach a "Conductor - User Manual Verification" task:
+
+1. **STOP execution**
+2. **Summarize** what was accomplished:
+   ```
+   ## 🔍 Phase [N] Verification: [Phase Name]
    
-⏭️  Next: [Next task] or 🔍 Verification gate
-```
+   ### Summary
+   [What was accomplished in this phase]
+   
+   ### Files Changed
+   !{git diff --name-only HEAD~5 2>/dev/null || echo "No git history"}
+   
+   ### Verification
+   - [x] [Requirement from spec]: [How it was met]
+   
+   ### Tests
+   !{npm test 2>&1 | tail -10 || echo "No test output"}
+   ```
+
+3. **Ask user**: "Ready to proceed to Phase [N+1]? Would you like to commit these changes first?"
+
+4. **Wait** for confirmation before next phase
+
+### Step 7: Handle Completion
+When all tasks are done:
+1. Update track status to "complete" in metadata.json
+2. Update tracks.md to show `[x]`
+3. Print summary:
+   ```
+   ## 🎉 Implementation Complete: [Feature Name]
+   
+   ### All Phases Completed
+   - [x] Phase 1: Data Layer
+   - [x] Phase 2: Backend API
+   - [x] Phase 3: Frontend
+   - [x] Phase 4: Review
+   
+   ### Next Steps
+   - [ ] Run /omg:review for code review
+   - [ ] Run /omg:docs for documentation
+   ```
+
+## Error Handling
+
+### If a task fails:
+1. Document what went wrong
+2. Check for common issues:
+   ```
+   !{npm run typecheck 2>&1 | tail -20 || echo "No typecheck"}
+   ```
+3. Propose a fix
+4. Ask user whether to attempt fix, skip, or abort
+
+### If blocked:
+1. Document what's missing
+2. Check if it's in the spec
+3. Ask user for clarification
 
 ## Guidelines
-
 - Follow task order strictly within phases
 - Never skip verification gates
 - Update plan.md as you go
-- Be transparent about what you're doing
+- Commit at verification gates if user approves
 """
