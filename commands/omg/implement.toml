@@ -19,9 +19,14 @@ You are executing a Conductor track's implementation plan.
 !{ls -la conductor/tracks/ 2>/dev/null || echo "NO_TRACK_DIRS"}
 ```
 
-### Find Active Track Metadata
+### Find Active Track
 ```
-!{find conductor/tracks -name "metadata.json" -exec echo "=== {} ===" \; -exec cat {} \; 2>/dev/null || echo "NO_METADATA"}
+!{find conductor/tracks -name "metadata.json" -exec cat {} + 2>/dev/null | head -50 || echo "NO_METADATA"}
+```
+
+### Active Track Plan
+```
+!{find conductor/tracks -name "plan.md" -exec cat {} + 2>/dev/null | head -100 || echo "NO_PLAN"}
 ```
 
 ### Project Context
@@ -34,88 +39,68 @@ You are executing a Conductor track's implementation plan.
 !{cat conductor/tech-stack.md 2>/dev/null | head -30 || echo "NO_TECH_STACK"}
 ```
 
-### Git Status
-```
-!{git status --short 2>/dev/null | head -20 || echo "NOT_GIT"}
-```
+## Hooks Working For You
 
-## Process
+oh-my-gemini v2.0 hooks handle verification automatically:
+
+| Hook | What It Does |
+|------|-------------|
+| **AfterTool** | Runs typecheck/lint after code changes |
+| **phase-gate** | Detects phase completion, prompts verification |
+| **ralph-retry** | Retries on failure if persistence mode active |
+
+You don't need to manually verify - hooks inject feedback.
+
+## Implementation Process
 
 ### Step 1: Identify Active Track
 From the metadata files above:
 1. Find tracks where `status` is NOT "complete"
-2. If multiple active tracks, ask user which one to work on
+2. If multiple active tracks, ask user which one
 3. If no active tracks, suggest running `/omg:track` first
 
-### Step 2: Load Track Context
-For the selected track, read:
-```
-!{cat conductor/tracks/*/spec.md 2>/dev/null | head -100}
-```
-
-```
-!{cat conductor/tracks/*/plan.md 2>/dev/null}
-```
-
-### Step 3: Identify Current Task
+### Step 2: Find Current Task
 1. Parse the plan.md file
 2. Find the first task marked `[ ]` (incomplete)
 3. Identify which phase it's in
 
-### Step 4: Execute Task
+### Step 3: Execute Tasks
 For each task:
 1. Understand what's needed from the task description
-2. Check existing code patterns:
-   ```
-   !{find src -name "*.ts" -o -name "*.js" 2>/dev/null | head -20}
-   ```
-3. Implement the change using appropriate tools
-4. Verify it works:
-   ```
-   !{npm test 2>&1 | tail -30 || echo "NO_TESTS"}
-   ```
-   ```
-   !{npm run lint 2>&1 | tail -20 || echo "NO_LINT"}
-   ```
+2. Check existing code patterns if needed
+3. Implement the change
+4. The AfterTool hook verifies automatically
+5. If errors, fix them (errors injected into context)
 
-### Step 5: Update Status
+### Step 4: Update Status
 After completing a task:
 1. Mark it `[x]` in plan.md using str_replace
-2. Update metadata.json with new timestamp
-3. Show progress:
+2. Show progress:
    ```
    📍 Track: [Feature Name]
    📋 Phase: [Phase N] - [Phase Name]
    ✅ Completed: [Task description]
-   ⏭️  Next: [Next task] or 🔍 Verification gate
+   ⏭️  Next: [Next task]
    ```
 
-### Step 6: Handle Verification Gates
-When you reach a "Conductor - User Manual Verification" task:
+### Step 5: Phase Gates
+The phase-gate hook detects when you complete a phase.
 
-1. **STOP execution**
-2. **Summarize** what was accomplished:
-   ```
-   ## 🔍 Phase [N] Verification: [Phase Name]
-   
-   ### Summary
-   [What was accomplished in this phase]
-   
-   ### Files Changed
-   !{git diff --name-only HEAD~5 2>/dev/null || echo "No git history"}
-   
-   ### Verification
-   - [x] [Requirement from spec]: [How it was met]
-   
-   ### Tests
-   !{npm test 2>&1 | tail -10 || echo "No test output"}
-   ```
+**Advisory mode (default):**
+- Shows a message suggesting verification
+- You can continue if appropriate
 
-3. **Ask user**: "Ready to proceed to Phase [N+1]? Would you like to commit these changes first?"
+**Strict mode (if user configured):**
+- Requires explicit verification
+- Lists what to check before proceeding
 
-4. **Wait** for confirmation before next phase
+When you reach a phase boundary:
+1. Summarize what was accomplished
+2. List files changed
+3. Note any issues or deviations
+4. Ask if user wants to proceed
 
-### Step 7: Handle Completion
+### Step 6: Handle Completion
 When all tasks are done:
 1. Update track status to "complete" in metadata.json
 2. Update tracks.md to show `[x]`
@@ -130,29 +115,32 @@ When all tasks are done:
    - [x] Phase 4: Review
    
    ### Next Steps
-   - [ ] Run /omg:review for code review
-   - [ ] Run /omg:docs for documentation
+   - Consider running code review
+   - Update documentation if needed
    ```
 
 ## Error Handling
 
 ### If a task fails:
-1. Document what went wrong
-2. Check for common issues:
-   ```
-   !{npm run typecheck 2>&1 | tail -20 || echo "No typecheck"}
-   ```
-3. Propose a fix
-4. Ask user whether to attempt fix, skip, or abort
+1. The AfterTool hook injects errors into context
+2. Read the errors and fix them
+3. Continue with the task
 
-### If blocked:
+### If stuck (with ralph/persistent keyword):
+1. The ralph-retry hook activates
+2. It suggests alternative approaches
+3. Keep trying up to max retries
+
+### If blocked on missing info:
 1. Document what's missing
-2. Check if it's in the spec
-3. Ask user for clarification
+2. Ask user for clarification
+3. Don't proceed with assumptions on critical decisions
 
 ## Guidelines
-- Follow task order strictly within phases
-- Never skip verification gates
-- Update plan.md as you go
-- Commit at verification gates if user approves
+
+- Follow task order within phases
+- The phase-gate hook handles verification prompts
+- Update plan.md as you complete tasks
+- Match existing codebase patterns
+- Trust the hooks for safety and verification
 """

@@ -1,7 +1,7 @@
 {
   "name": "oh-my-gemini",
-  "version": "0.2.0",
-  "description": "Multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power. Now with persistence, intelligent routing, and SubAgent-ready architecture.",
+  "version": "2.0.0",
+  "description": "Hook-enforced multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power.",
   "author": "richardcb",
   "repository": "https://github.com/richardcb/oh-my-gemini",
   "license": "MIT",
@@ -10,13 +10,13 @@
     "multi-agent",
     "orchestration",
     "conductor",
+    "hooks",
     "ai-agents",
     "agentic-coding",
-    "persistence",
     "docs-first"
   ],
   "engines": {
-    "gemini-cli": ">=0.25.0"
+    "gemini-cli": ">=0.26.0"
   },
   "commands": [
     "commands/omg"
@@ -27,50 +27,145 @@
   "skills": [
     "skills"
   ],
-  "hooks": [
-    "hooks"
-  ],
-  "experimental": {
-    "enableAgents": true,
-    "skills": true,
-    "hooks": true
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "name": "omg-session-start",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/session-start.js",
+            "timeout": 5000,
+            "description": "Load Conductor state and project context on startup"
+          }
+        ]
+      }
+    ],
+    "BeforeAgent": [
+      {
+        "hooks": [
+          {
+            "name": "omg-context-injection",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/before-agent.js",
+            "timeout": 10000,
+            "description": "Dynamic context injection based on task type"
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "matcher": "write_file|replace|edit_file|create_file|run_shell_command|shell",
+        "hooks": [
+          {
+            "name": "omg-security-gate",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/before-tool.js",
+            "timeout": 15000,
+            "description": "Security gates and git checkpoints before file/shell operations"
+          }
+        ]
+      }
+    ],
+    "AfterTool": [
+      {
+        "matcher": "write_file|replace|edit_file|create_file",
+        "hooks": [
+          {
+            "name": "omg-auto-verify",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/after-tool.js",
+            "timeout": 60000,
+            "description": "Auto-verification (typecheck, lint) after code changes"
+          }
+        ]
+      }
+    ],
+    "BeforeToolSelection": [
+      {
+        "hooks": [
+          {
+            "name": "omg-tool-filter",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/tool-filter.js",
+            "timeout": 5000,
+            "description": "Filter tools based on detected agent mode (researcher/architect/executor)"
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "name": "omg-phase-gate",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/phase-gate.js",
+            "timeout": 10000,
+            "description": "Conductor phase verification gates"
+          },
+          {
+            "name": "omg-ralph-retry",
+            "type": "command",
+            "command": "node ${extensionPath}/hooks/ralph-retry.js",
+            "timeout": 5000,
+            "description": "Persistence mode (Ralph) - automatic retry on failure"
+          }
+        ]
+      }
+    ]
   },
   "configuration": {
-    "persistence": {
+    "phaseGates.enabled": {
+      "description": "Enable Conductor phase gate detection",
+      "type": "boolean",
+      "default": true
+    },
+    "phaseGates.strict": {
+      "description": "If true, phase gates block progression until user confirms",
+      "type": "boolean",
+      "default": false
+    },
+    "autoVerification.enabled": {
+      "description": "Run typecheck/lint after code changes",
+      "type": "boolean",
+      "default": true
+    },
+    "autoVerification.typecheck": {
+      "description": "Run TypeScript type checking",
+      "type": "boolean",
+      "default": true
+    },
+    "autoVerification.lint": {
+      "description": "Run linting",
+      "type": "boolean",
+      "default": true
+    },
+    "security.gitCheckpoints": {
+      "description": "Create git checkpoints before file modifications",
+      "type": "boolean",
+      "default": true
+    },
+    "toolFilter.enabled": {
+      "description": "Filter tools based on detected agent mode",
+      "type": "boolean",
+      "default": true
+    },
+    "ralph.enabled": {
       "description": "Enable persistence mode (ralph) for automatic retry",
       "type": "boolean",
       "default": true
     },
-    "autoCheckpoint": {
-      "description": "Create git checkpoints before file changes",
-      "type": "boolean",
-      "default": true
-    },
-    "verifyAfterChanges": {
-      "description": "Run typecheck/lint after file changes",
+    "contextInjection.conductorState": {
+      "description": "Inject active Conductor track info",
       "type": "boolean",
       "default": true
     }
   },
-  "capabilities": {
-    "current": [
-      "docs-first-workflow",
-      "conductor-integration",
-      "skill-library",
-      "persistence-mode",
-      "git-hooks",
-      "verification-gates"
-    ],
-    "subagent-ready": [
-      "context-isolation",
-      "tool-sandboxing",
-      "parallel-execution",
-      "agent-routing"
-    ],
-    "planned": [
-      "ultrapilot-mode",
-      "swarm-mode",
-      "cost-optimization"
-    ]
+  "experimental": {
+    "enableAgents": true,
+    "skills": true,
+    "hooks": true
   }
 }
