@@ -45,7 +45,7 @@ gemini extensions install . --local
 oh-my-gemini/
 ├── gemini-extension.json    # Extension manifest
 ├── commands/omg/            # Slash commands (/omg:*)
-├── agents/                  # Agent definitions (TOML)
+├── .gemini/agents/          # Agent definitions (SubAgent .md format)
 ├── skills/                  # Skill definitions (SKILL.md)
 ├── hooks/                   # Pre/post tool hooks
 ├── conductor/templates/     # Conductor workflow templates
@@ -74,13 +74,16 @@ Your prompt here. Can include:
 ```
 
 ### Agents
-Agent definitions live in `agents/*.toml`. These are SubAgent-ready.
+Agent definitions live in `.gemini/agents/*.md` using Gemini CLI's SubAgent format (Markdown with YAML frontmatter).
 
-**Key sections:**
-- `[agent]` - Name and description
-- `[agent.subagent_config]` - Future SubAgent settings
-- `[agent.config]` - Model and tools
-- `[agent.prompt]` - System prompt
+**YAML frontmatter fields:**
+- `name` - Agent identifier
+- `description` - When to use this agent
+- `model` - Model to use (e.g., `gemini-2.5-pro`)
+- `tools` - List of allowed tools
+- Optional: `temperature`, `max_turns`, `timeout_mins`
+
+The markdown body becomes the agent's system prompt.
 
 ### Skills
 Skills live in `skills/*/SKILL.md`. Follow the standard format:

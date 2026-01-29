@@ -2,8 +2,8 @@
 name: code-review
 description: |
   Perform thorough code review of implemented features. Compares implementation against
-  the technical plan, checks for AI-specific risks (logic errors, resource inefficiency),
-  and provides actionable feedback prioritized by business impact.
+  the technical plan, checks for AI-specific risks, and provides actionable feedback.
+  v2.0: Auto-verification now handled by hooks - focus on higher-level review.
 ---
 
 # Code Review Skill
@@ -11,6 +11,14 @@ description: |
 ## Goal
 
 Perform a thorough code review of newly implemented features, comparing against the technical plan, checking for AI-specific risks, and providing actionable feedback.
+
+## v2.0 Changes
+
+The `after-tool` hook now handles automatic verification (typecheck, lint) after every code change. This skill focuses on **higher-level review**:
+- Architecture alignment
+- AI-specific risk patterns
+- Business logic correctness
+- Code quality beyond what linters catch
 
 ## Process
 
@@ -52,21 +60,12 @@ Check each area systematically.
 
 ### 2. Code Quality & Best Practices
 
-**Bugs & Issues:**
-```bash
-# Check for obvious issues
-npm run typecheck 2>&1 | tail -30
-npm run lint 2>&1 | tail -30
-```
+**Note:** Basic linting is handled by the `after-tool` hook. Focus on:
 
-**Readability:**
-- Is the code clean and readable?
-- Are names meaningful?
-- Is complexity appropriate?
-
-**Conventions:**
-- Does code follow local conventions?
-- Are patterns consistent with existing code?
+- **Readability:** Is the code clean and understandable?
+- **Naming:** Are names meaningful and consistent?
+- **Complexity:** Is complexity appropriate for the problem?
+- **Patterns:** Does code follow existing codebase patterns?
 
 ### 3. AI-Specific Risk Assessment
 
@@ -118,17 +117,7 @@ grep -rn "try {" --include="*.ts" src/ | wc -l
 grep -rn "catch" --include="*.ts" src/ | wc -l
 ```
 
-**Loading States:**
-```bash
-# Check for loading state handling
-grep -rn "loading\|isLoading\|pending" --include="*.tsx" src/ | head -10
-```
-
-**Input Validation:**
-```bash
-# Check for Zod or validation
-grep -rn "z\.\|Zod\|validate\|schema" src/ | head -10
-```
+**Note:** The `after-tool` hook reports TypeScript errors automatically. This review looks for patterns the type system doesn't catch.
 
 ### 5. Testing Assessment
 
@@ -138,9 +127,6 @@ find . -name "*.test.*" -o -name "*.spec.*" 2>/dev/null | head -20
 
 # Check test coverage
 npm test -- --coverage 2>&1 | tail -30
-
-# Count test cases
-grep -rn "it(\|test(" --include="*.test.*" src/ | wc -l
 ```
 
 **Questions:**
@@ -176,6 +162,11 @@ grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
 ## Summary
 [2-3 sentence overview of the review findings]
 
+## Verification Status
+The `after-tool` hook has been running automatic verification.
+- TypeScript: [✅ Passing / ⚠️ Issues found]
+- Lint: [✅ Passing / ⚠️ Issues found]
+
 ## Plan Implementation: [✅ Complete / ⚠️ Partial / ❌ Incomplete]
 
 ### Deviations from Plan
@@ -209,7 +200,6 @@ grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
 ### Coverage
 - Statements: [X%]
 - Branches: [X%]
-- Functions: [X%]
 
 ### Missing Tests
 - [Area needing tests]
@@ -227,13 +217,7 @@ grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
 ## Overall Assessment: [Excellent / Good / Needs Changes / Major Rework]
 
 ### Business Impact
-[Plain language: what works, what risks exist, what happens if shipped as-is]
-
-### Verification Checklist
-- [x/ ] Negative paths tested
-- [x/ ] Concurrency handled correctly
-- [x/ ] Security defaults used
-- [x/ ] No outdated patterns
+[Plain language: what works, what risks exist]
 
 ---
 
@@ -247,18 +231,12 @@ grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
 
 ### 🟠 High Priority (Should Fix)
 1. **[Issue]**
-   - Impact: [Effect on UX/maintainability]
-   - Fix: [Guidance]
 
 ### 🟡 Medium Priority (Fix Soon)
 1. **[Issue]**
-   - Impact: [Technical debt]
-   - Fix: [Guidance]
 
 ### 🟢 Low Priority (Nice to Have)
 1. **[Issue]**
-   - Impact: [Minor improvement]
-   - Fix: [Guidance]
 
 ---
 
@@ -271,8 +249,8 @@ grep -rn "password\|secret\|api_key\|apikey" --include="*.ts" src/ | head -10
 
 ## Guidelines
 
-- **Be objective and constructive**: Point out issues clearly but helpfully
-- **Explain "why"**: Don't just say something is wrong, explain the impact
-- **Use plain language**: Avoid unnecessary jargon
-- **Be specific**: Give concrete examples and line numbers
-- **Prioritize clearly**: Not all issues are equally important
+- **Focus on what hooks don't catch:** Logic errors, architecture issues, AI patterns
+- **Be objective and constructive:** Point out issues clearly but helpfully
+- **Explain "why":** Don't just say something is wrong, explain the impact
+- **Prioritize clearly:** Not all issues are equally important
+- **Trust the hooks:** Basic verification is automatic, focus on deeper review

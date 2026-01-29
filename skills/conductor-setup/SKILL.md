@@ -2,8 +2,8 @@
 name: conductor-setup
 description: |
   Initialize Conductor workflow in a project. Bundles all necessary templates
-  for product context, tech stack, workflow, and tracks. Use when setting up
-  Conductor for the first time via /omg:conductor-setup.
+  for product context, tech stack, workflow, and tracks.
+  v2.0: Hooks now handle phase enforcement - setup focuses on file creation.
 ---
 
 # Conductor Setup Skill
@@ -11,6 +11,14 @@ description: |
 ## Goal
 
 Initialize a complete Conductor workflow in the user's project with all necessary configuration files.
+
+## v2.0 Changes
+
+Conductor phase enforcement is now handled by the `phase-gate` hook:
+- **Advisory mode (default):** Shows message at phase boundaries
+- **Strict mode:** Blocks progression until user confirms
+
+Setup now focuses on creating files; enforcement is automatic via hooks.
 
 ## Bundled Resources
 
@@ -60,31 +68,55 @@ cat requirements.txt 2>/dev/null | head -10
 
 # Check for go.mod (Go)
 cat go.mod 2>/dev/null | head -5
-
-# Check for Cargo.toml (Rust)
-cat Cargo.toml 2>/dev/null | head -10
 ```
 
 Ask user to confirm/correct detected stack.
 
-### 5. Write Configuration Files
+### 5. Configure Hook Behavior (Optional)
 
-Read each template from this skill's `templates/` directory and write to `conductor/`:
+Ask if they want to customize phase gate behavior:
+
+```
+Phase gates control how strictly Conductor enforces workflow phases.
+
+**Advisory mode (default):**
+- Shows a message when you complete a phase
+- Suggests verification but allows continuation
+
+**Strict mode:**
+- Requires explicit confirmation before proceeding
+- Better for complex projects or teams
+
+Which mode? [A]dvisory (default) / [S]trict
+```
+
+If strict mode selected, create `.gemini/omg-config.json`:
+```json
+{
+  "phaseGates": {
+    "strict": true
+  }
+}
+```
+
+### 6. Write Configuration Files
+
+Create files in `conductor/`:
 
 1. **product.md** - Customize with user's answers
 2. **tech-stack.md** - Customize with detected/confirmed stack
-3. **workflow.md** - Use as-is (or customize if user has preferences)
+3. **workflow.md** - Use template (updated for v2.0 hooks)
 4. **tracks.md** - Initialize empty
 5. **code_styleguides/general.md** - Use as-is
 
-### 6. Verify Setup
+### 7. Verify Setup
 
 ```bash
 ls -la conductor/
 cat conductor/tracks.md
 ```
 
-### 7. Report Success
+### 8. Report Success
 
 ```
 ✅ Conductor initialized!
@@ -97,18 +129,33 @@ Created:
 - conductor/code_styleguides/general.md
 - conductor/tracks/ (directory)
 
+Hooks Active:
+- phase-gate: [Advisory/Strict] mode
+- after-tool: Auto-verification enabled
+
 Next steps:
 1. Review and refine the generated files
 2. Run /omg:track "your first feature" to start planning
 3. Run /omg:status to see your project state
 ```
 
+## Hook Integration
+
+The following hooks support Conductor workflows:
+
+| Hook | Conductor Support |
+|------|-------------------|
+| `session-start` | Loads active track state on startup |
+| `before-agent` | Injects current task context |
+| `phase-gate` | Enforces phase boundaries (advisory/strict) |
+| `after-tool` | Auto-verifies code changes |
+
 ## Customization Questions
 
 ### Workflow Preferences
-- "Do you want to require PRDs before coding? [Y/n]"
-- "Commit strategy: [P]hase completion / [T]ask completion / [M]anual?"
-- "Test requirements: [R]equired / [R]ecommended / [N]one?"
+- "Phase gate mode: [A]dvisory / [S]trict?"
+- "Enable auto-verification? [Y/n]"
+- "Create git checkpoints before changes? [Y/n]"
 
 ### Product Guidelines (Optional)
 - "Do you have design/product guidelines to add? [Y/n]"

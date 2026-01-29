@@ -72,6 +72,26 @@ Use
       }
     }
 
+    // Check if experimental agents are enabled
+    // Note: We can't actually read Gemini CLI settings from here,
+    // but we can check if our agents directory exists and warn about setup
+    const fs = require('fs');
+    const path = require('path');
+    const agentsDir = path.join(projectRoot, '.gemini', 'agents');
+
+    if (fs.existsSync(agentsDir)) {
+      const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
+      if (agentFiles.length > 0) {
+        additionalContext += `
+## 🤖 Sub-Agents Available
+
+${agentFiles.map(f => `- \`${f.replace('.md', '')}\``).join('\n')}
+
+> **Note:** Ensure \`experimental.enableAgents: true\` is set in your settings.json for sub-agents to work.
+`;
+      }
+    }
+
     // Customize message based on session source
     switch (source) {
       case 'startup':
