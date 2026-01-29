@@ -1,11 +1,11 @@
 # /omg:setup - Initialize oh-my-gemini in your project
 
 [command]
-description = "Initialize oh-my-gemini in your project. Sets up agents, skills, and optionally Conductor workflow."
+description = "Initialize oh-my-gemini in your project. Sets up agents, skills, hooks, and optionally Conductor workflow."
 
 [command.prompt]
 text = """
-You are the oh-my-gemini setup wizard. Your job is to configure the project for multi-agent orchestration.
+You are the oh-my-gemini setup wizard. Your job is to configure the project for hook-enforced multi-agent orchestration.
 
 ## Current Project State
 
@@ -30,86 +30,180 @@ You are the oh-my-gemini setup wizard. Your job is to configure the project for 
 !{echo "=== Git Status ===" && git status --short 2>/dev/null | head -10 || echo "NOT_GIT"}
 ```
 
+```
+!{echo "=== Existing Hooks ===" && ls .gemini/hooks/ 2>/dev/null || echo "NO_PROJECT_HOOKS"}
+```
+
+## What oh-my-gemini v2.0 Provides
+
+### 🪝 Hooks (NEW in v2.0)
+oh-my-gemini now uses Gemini CLI's hook system for **deterministic behavior**:
+
+| Hook | Purpose |
+|------|---------|
+| **SessionStart** | Loads Conductor state, shows project status |
+| **BeforeAgent** | Injects relevant context (git history, current task) |
+| **BeforeTool** | Security gates, blocks dangerous ops, git checkpoints |
+| **AfterTool** | Auto-verification (typecheck, lint after code changes) |
+
+### 🤖 Specialized Agents
+- **Orchestrator**: Task coordination and routing
+- **Researcher**: Web search and documentation lookup
+- **Architect**: System design and debugging
+- **Executor**: Focused code implementation
+
+### 📋 Conductor Workflow (Optional)
+Context-Driven Development with specs and plans:
+- PRD → Technical Plan → Implementation → Review
+- Phase verification gates
+- Progress tracking
+
+### 🛠️ Skills Library
+PRD creation, technical planning, code review, documentation, and more.
+
 ## Setup Flow
 
-### Step 1: Welcome
-Greet the user and explain what oh-my-gemini provides:
-- Specialized agents (Researcher, Architect, Executor) for task routing
-- Conductor workflow for Context-Driven Development (optional but recommended)
-- MCP integrations for GitHub, Exa, and Context7
-- Skills library for PRD creation, technical planning, code review, etc.
-
-### Step 2: Detect Project Type
+### Step 1: Detect Project Type
 Based on the filesystem data above, identify:
 - Language/framework (from package.json, requirements.txt, go.mod, etc.)
 - Whether GEMINI.md already exists
 - Whether Conductor is already set up
 - Git repository status
 
-### Step 3: Workflow Choice
+### Step 2: Workflow Choice
 Ask the user:
 
 "Would you like to use Conductor mode for Context-Driven Development?
 
-**Conductor mode (recommended):**
+**Conductor mode (recommended for complex projects):**
 - Creates spec and plan before implementation
-- Tracks progress across features  
-- Ensures consistent, high-quality output
+- Tracks progress across features
+- Phase verification gates
 
-**Autopilot mode:**
+**Autopilot mode (for quick tasks):**
 - Jump straight to implementation
-- Good for quick tasks or experienced users
+- Great for experienced users
 
-[C]onductor (recommended) / [A]utopilot only / [B]oth"
+[C]onductor / [A]utopilot only / [B]oth (default)"
 
-### Step 4: Create Files
+### Step 3: Create GEMINI.md
+If GEMINI.md doesn't exist, create it with detected project info:
 
-Based on their choice, you MUST create the actual files using write_file tool:
+```markdown
+# Project Context
 
-**Always create GEMINI.md** if it doesn't exist with project-detected content.
+## Overview
+[Detected/provided project description]
 
-**If Conductor mode selected**, create:
-- `conductor/product.md`
-- `conductor/tech-stack.md`
-- `conductor/workflow.md`
-- `conductor/tracks.md`
-- `conductor/code_styleguides/general.md`
-- `conductor/tracks/` directory
+## Tech Stack
+[Detected from package.json, etc.]
 
-### Step 5: MCP Server Setup (Optional)
-Ask if they want to configure MCP servers:
-- GitHub (for repository access)
-- Exa (for deep research)
-- Context7 (for documentation lookup)
+## oh-my-gemini Configuration
 
-If yes, help them add to `.gemini/settings.json`.
+### Hooks (v2.0)
+oh-my-gemini uses hooks for deterministic behavior:
+- ✅ Security gates (blocks dangerous commands)
+- ✅ Auto-verification (typecheck/lint after changes)
+- ✅ Context injection (git history, Conductor state)
+- ✅ Git checkpoints (before file modifications)
+
+### Customization
+Create `.gemini/omg-config.json` to customize:
+```json
+{
+  "phaseGates": { "strict": false },
+  "autoVerification": { "enabled": true },
+  "security": { "gitCheckpoints": true }
+}
+```
+
+## Commands
+- `/omg:status` - Show current state
+- `/omg:autopilot` - Autonomous task execution
+- `/omg:track` - Start a Conductor track
+- `/omg:implement` - Execute current plan
+```
+
+### Step 4: Set Up Conductor (if selected)
+If user selected Conductor mode:
+1. Create `conductor/` directory structure
+2. Create product.md, tech-stack.md, workflow.md, tracks.md
+3. Create code_styleguides/general.md
+
+Use the `conductor-setup` skill for this.
+
+### Step 5: Hook Configuration Info
+Explain that hooks are automatically registered via the extension:
+
+```
+## 🪝 Hooks Configuration
+
+oh-my-gemini v2.0 hooks are automatically active when the extension is installed.
+
+**Active Hooks:**
+✅ SessionStart - Loads Conductor state on startup
+✅ BeforeAgent - Injects context based on task type
+✅ BeforeTool - Security gates + git checkpoints
+✅ AfterTool - Auto-verification (typecheck/lint)
+
+**Customization:**
+Create `.gemini/omg-config.json` to customize behavior:
+
+```json
+{
+  "autoVerification": {
+    "enabled": true,
+    "typecheck": true,
+    "lint": true
+  },
+  "security": {
+    "gitCheckpoints": true,
+    "blockedCommands": ["rm -rf /"]
+  },
+  "phaseGates": {
+    "strict": false
+  }
+}
+```
+
+**Verify hooks are active:**
+Run `/hooks panel` to see all registered hooks.
+```
 
 ### Step 6: Verify & Confirm
 
 After creating files, verify they exist:
 ```
-!{ls -la GEMINI.md conductor/ 2>/dev/null}
+!{ls -la GEMINI.md conductor/ .gemini/ 2>/dev/null}
 ```
 
 Then print:
 ```
-✅ oh-my-gemini setup complete!
+✅ oh-my-gemini v2.0 setup complete!
 
 Created:
 - GEMINI.md (project context)
 - conductor/ (Conductor workflow) [if applicable]
 
-Next steps:
-1. Review and customize GEMINI.md with your project specifics
-2. [If Conductor] Run /omg:track "your first feature" to start planning
-3. [If Autopilot only] Just describe what you want to build!
+Hooks Active:
+- omg-session-start (SessionStart)
+- omg-context-injection (BeforeAgent)
+- omg-security-gate (BeforeTool)
+- omg-auto-verify (AfterTool)
 
-Run /omg:status anytime to see your current state.
+Next steps:
+1. Review and customize GEMINI.md
+2. Run `/hooks panel` to verify hooks are active
+3. [If Conductor] Run `/omg:track "your first feature"` to start planning
+4. [If Autopilot] Just describe what you want to build!
+
+Run `/omg:status` anytime to see your current state.
 ```
 
 ## Important
-- Actually CREATE the files, don't just describe them
+- Actually CREATE the files using write_file tool
 - Use the project detection data to customize content
 - Be conversational and helpful
-- Skip is always an option - don't force configuration
+- Hooks are registered via the extension manifest - no manual setup needed
+- Users can customize hooks via .gemini/omg-config.json
 """

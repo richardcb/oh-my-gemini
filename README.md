@@ -2,9 +2,23 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**Multi-agent orchestration for Gemini CLI. Zero learning curve.**
+**Hook-enforced multi-agent orchestration for Gemini CLI. Zero learning curve.**
 
-*Inspired by [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) and [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode), reimagined for the Gemini ecosystem.*
+*Inspired by [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode), reimagined for the Gemini ecosystem with deterministic workflow enforcement.*
+
+---
+
+## What's New in v2.0
+
+oh-my-gemini v2.0 introduces **hook-based enforcement** - workflows that were previously enforced through prompts are now enforced through Gemini CLI's hook system, making behavior **deterministic rather than probabilistic**.
+
+| Feature | v1.0 (Prompts) | v2.0 (Hooks) |
+|---------|----------------|--------------|
+| Tool sandboxing | "Don't use write tools" | `tool-filter` hook blocks them |
+| Security gates | "Avoid dangerous commands" | `before-tool` hook rejects them |
+| Auto-verification | "Remember to typecheck" | `after-tool` hook runs it |
+| Phase gates | "Wait for confirmation" | `phase-gate` hook enforces it |
+| Persistence | Skill with retry prompts | `ralph-retry` hook forces retries |
 
 ---
 
@@ -16,157 +30,93 @@
 gemini extensions install https://github.com/richardcb/oh-my-gemini
 ```
 
-**Step 2: Setup**
+**Step 2: Enable Experimental Features**
+
+Add to `~/.gemini/settings.json`:
+
+```json
+{
+  "experimental": {
+    "enableAgents": true,
+    "skills": true,
+    "hooks": true
+  }
+}
+```
+
+**Step 3: Verify Hooks**
+
+```
+/hooks panel
+```
+
+You should see 7 hooks registered.
+
+**Step 4: Build Something**
+
+```
+/omg:autopilot build a REST API for managing tasks
+```
+
+---
+
+## Core Features
+
+### 🪝 Hook-Enforced Workflows
+
+oh-my-gemini uses Gemini CLI's hook system for deterministic behavior:
+
+| Hook | Event | What It Does |
+|------|-------|--------------|
+| `session-start` | SessionStart | Loads Conductor state, shows project status |
+| `before-agent` | BeforeAgent | Injects context (git history, current task) |
+| `tool-filter` | BeforeToolSelection | Sandboxes tools by agent mode |
+| `before-tool` | BeforeTool | Security gates, git checkpoints |
+| `after-tool` | AfterTool | Auto-verification (typecheck, lint) |
+| `phase-gate` | AfterAgent | Conductor phase enforcement |
+| `ralph-retry` | AfterAgent | Persistence mode retry logic |
+
+### 🤖 Specialized Agents
+
+| Agent | Purpose | Tool Access |
+|-------|---------|-------------|
+| **Orchestrator** | Task coordination and routing | Full |
+| **Researcher** | Web search, documentation lookup | Read + Web (enforced by hook) |
+| **Architect** | System design, debugging | Read only (enforced by hook) |
+| **Executor** | Code implementation | Full (with security gates) |
+
+### 📋 Conductor Workflow
+
+Context-Driven Development with specs and plans:
 
 ```bash
-/omg:setup
+/omg:conductor-setup    # Initialize Conductor
+/omg:track "feature"    # Start a new feature track
+/omg:implement          # Execute the plan
+/omg:status             # Check progress
 ```
 
-**Step 3: Build something**
+**Workflow:** PRD → Technical Plan → Implementation → Review
+
+Phase gates are enforced by the `phase-gate` hook (advisory or strict mode).
+
+### 🔄 Persistence Mode (Ralph)
+
+Never give up until the task is complete:
 
 ```
-autopilot: build a REST API for managing tasks
+ralph: fix all TypeScript errors in this project
 ```
 
-That's it. Everything else is automatic.
+The `ralph-retry` hook automatically:
+- Detects failure indicators
+- Suggests alternative approaches
+- Forces retries (up to configurable max)
+- Escalates to user after max attempts
 
 ---
 
-## Why oh-my-gemini?
-
-- **Leverage Gemini's strengths** - 2M token context window means your agents see the whole picture
-- **Docs-First Development** - Plan before you build with Conductor workflow
-- **Persistence Mode (Ralph)** - Never give up until the task is complete
-- **Specialized Agents** - Researcher, Architect, Executor - the right expert for each task
-- **SubAgent-Ready** - Prepared for Gemini CLI's upcoming parallel execution
-- **Auto-Verification** - Hooks verify your code after every change
-
----
-
-## Features
-
-### Execution Modes
-
-| Mode | Description | Command |
-|------|-------------|---------|
-| **Autopilot** | Autonomous task execution with smart agent routing | `/omg:autopilot` |
-| **Conductor** | Full planning workflow: Context → Spec → Plan → Implement | `/omg:conductor-setup` |
-| **Persistent** | Don't give up mode - retry until success | Use `ralph:` prefix |
-
-### Specialized Agents (Pre-SubAgent)
-
-| Agent | Purpose | Use When |
-|-------|---------|----------|
-| **Orchestrator** | Task coordination and routing | Automatic - manages workflow |
-| **Researcher** | Deep research, web search | Need external context or documentation |
-| **Architect** | System design, complex debugging | Architecture decisions, tricky bugs |
-| **Executor** | Focused implementation | Writing code from a clear spec |
-
-### Skills Library
-
-| Skill | Purpose |
-|-------|---------|
-| **prd-creation** | Generate PRDs through structured questions |
-| **technical-planning** | Transform PRDs into phased plans |
-| **implementation** | Execute plans with verification gates |
-| **code-review** | Review code for quality and AI-specific risks |
-| **documentation** | Document what was built |
-| **persistence** | Retry logic and alternative approaches |
-| **git-commit** | Intelligent conventional commits |
-| **test-generation** | Generate comprehensive tests |
-| **debug-assistant** | Systematic debugging methodology |
-
-### Magic Keywords
-
-| Keyword | Effect | Example |
-|---------|--------|---------|
-| `autopilot:` | Full autonomous execution | `autopilot: build a todo app` |
-| `ralph:` | Persistence mode - never give up | `ralph: fix all TypeScript errors` |
-| `plan:` | Planning interview before coding | `plan: user authentication` |
-| `eco:` | Token-efficient execution | `eco: refactor this file` |
-
----
-
-## Conductor Mode (Recommended)
-
-oh-my-gemini includes an enhanced version of [Conductor](https://github.com/gemini-cli-extensions/conductor) for Docs-First Development.
-
-```bash
-# Initialize Conductor in your project
-/omg:conductor-setup
-
-# Start a new feature track
-/omg:track "Add user authentication with OAuth"
-
-# Implement the planned tasks
-/omg:implement
-
-# Check progress
-/omg:status
-```
-
-**Workflow:**
-1. **Context** → Define your product, tech stack, and workflow preferences
-2. **Spec** → Generate detailed requirements for the feature
-3. **Plan** → Break the spec into phases and tasks with verification gates
-4. **Implement** → Execute the plan, updating status as you go
-5. **Review** → Code review against the plan
-6. **Document** → Generate documentation for what was built
-
----
-
-## Hooks & Auto-Verification
-
-oh-my-gemini includes hooks that run automatically:
-
-### Pre-Tool Hook
-- Creates git checkpoints before risky file changes
-- Ensures you can always rollback
-
-### Post-Tool Hook  
-- Runs typecheck after TypeScript changes
-- Runs lint after code changes
-- Reports issues immediately
-
-Configure in your project:
-```bash
-cp oh-my-gemini/hooks/* .gemini/hooks/
-```
-
----
-
-## SubAgent Architecture (Coming Soon)
-
-oh-my-gemini is prepared for Gemini CLI's upcoming SubAgent architecture ([Issue #3132](https://github.com/google-gemini/gemini-cli/issues/3132)).
-
-When SubAgent ships, you'll get:
-- **True parallel execution** - Multiple agents working simultaneously
-- **Context isolation** - Clean main thread, no history rot
-- **Tool sandboxing** - Each agent has filtered tool access
-- **Ultrapilot mode** - 3-5x faster with coordinated agents
-
-All agent definitions are already SubAgent-ready with:
-- `isolated_context` configuration
-- `tool_permissions` per agent
-- `shell_whitelist` for safe execution
-
----
-
-## MCP Integrations
-
-oh-my-gemini supports these MCP servers:
-
-| Server | Purpose | Setup |
-|--------|---------|-------|
-| **GitHub** | Repository access, PR creation | Requires PAT |
-| **Exa** | Deep web research for agents | Requires API key |
-| **Context7** | Documentation lookup | Requires API key |
-
-Configure during `/omg:setup` or manually in your MCP settings.
-
----
-
-## Commands Reference
+## Commands
 
 | Command | Description |
 |---------|-------------|
@@ -179,11 +129,46 @@ Configure during `/omg:setup` or manually in your MCP settings.
 
 ---
 
-## Examples
+## Magic Keywords
 
-The `examples/` directory contains real-world configurations:
+Include these in your prompts for specific behaviors:
 
-- **`examples/scoring-app/`** - A complete Conductor setup for a web application with React/Hono/Drizzle stack
+| Keyword | Effect |
+|---------|--------|
+| `ralph` / `persistent` | Enable persistence mode - don't give up |
+| `@researcher` | Switch to research mode (read + web only) |
+| `@architect` | Switch to architect mode (read only) |
+| `@executor` | Switch to executor mode (full access) |
+| `plan` / `design` | Focus on planning before implementation |
+
+---
+
+## Configuration
+
+Customize hook behavior via `.gemini/omg-config.json`:
+
+```json
+{
+  "phaseGates": {
+    "enabled": true,
+    "strict": false
+  },
+  "autoVerification": {
+    "enabled": true,
+    "typecheck": true,
+    "lint": true
+  },
+  "security": {
+    "gitCheckpoints": true
+  },
+  "ralph": {
+    "enabled": true,
+    "maxRetries": 5
+  }
+}
+```
+
+See [docs/HOOKS.md](docs/HOOKS.md) for full configuration reference.
 
 ---
 
@@ -192,15 +177,22 @@ The `examples/` directory contains real-world configurations:
 ```
 oh-my-gemini/
 ├── gemini-extension.json    # Extension manifest
-├── commands/omg/            # Slash commands (/omg:*)
-├── agents/                  # Agent definitions (SubAgent-ready)
+├── commands/omg/            # Slash commands
+├── .gemini/agents/          # Agent definitions (SubAgent format)
 ├── skills/                  # Skill definitions
-├── hooks/                   # Pre/post tool hooks
+├── hooks/                   # Hook scripts (v2.0)
+│   ├── lib/                 # Shared utilities
+│   ├── session-start.js
+│   ├── before-agent.js
+│   ├── tool-filter.js
+│   ├── before-tool.js
+│   ├── after-tool.js
+│   ├── phase-gate.js
+│   └── ralph-retry.js
 ├── conductor/templates/     # Conductor workflow templates
 ├── mcp/                     # MCP server configurations
 ├── templates/               # Project templates
 ├── docs/                    # Documentation
-│   └── SUBAGENT_PREPARATION.md
 └── examples/                # Real-world examples
 ```
 
@@ -208,28 +200,28 @@ oh-my-gemini/
 
 ## Requirements
 
-- [Gemini CLI](https://geminicli.com) v0.25.0+
+- [Gemini CLI](https://geminicli.com) v0.26.0+ (hooks support)
 - Google AI API key or Vertex AI credentials
-- Enable experimental features:
-  ```json
-  {
-    "experimental": {
-      "enableAgents": true,
-      "skills": true
-    }
-  }
-  ```
+- Node.js (for hook execution)
+
+---
+
+## Documentation
+
+- [Getting Started](docs/getting-started.md)
+- [Hooks Reference](docs/HOOKS.md)
+- [Conductor Workflow](conductor/README.md)
+- [Contributing](CONTRIBUTING.md)
 
 ---
 
 ## Roadmap
 
 - [x] Phase 0: Project scaffolding
-- [x] Phase 1: Core skills and Conductor integration
-- [x] Phase 1.5: Persistence mode, hooks, verification
-- [ ] Phase 2: SubAgent integration (when available)
-- [ ] Phase 3: Ultrapilot parallel mode
-- [ ] Phase 4: Swarm coordinated execution
+- [x] Phase 1: Core hooks infrastructure
+- [x] Phase 2: Advanced hooks + agent simplification
+- [x] Phase 3: Documentation + polish
+- [ ] Phase 4: SubAgent integration (when available)
 
 ---
 
@@ -248,9 +240,8 @@ MIT
 ## Acknowledgments
 
 - [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) - Original inspiration
-- [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) - Cross-platform vision
-- [Conductor](https://github.com/gemini-cli-extensions/conductor) - Workflow foundation
+- [Gemini CLI](https://geminicli.com) - Hook system that makes v2.0 possible
 
 ---
 
-**Zero learning curve. Maximum power. OMG.**
+**Hook-enforced workflows. Deterministic behavior. OMG.**

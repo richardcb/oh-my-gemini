@@ -1,8 +1,8 @@
 ---
 name: implementation
 description: |
-  Execute a technical plan task by task, following the phased structure and verification gates.
-  Updates task status as work progresses. Works with Conductor's plan.md format.
+  Execute a technical plan task by task, following the phased structure.
+  v2.0: Hooks now handle verification automatically - no manual reminders needed.
   Use when a technical plan exists and it's time to write code.
 ---
 
@@ -10,7 +10,16 @@ description: |
 
 ## Goal
 
-Execute a technical plan systematically, following established phases, completing tasks in order, and maintaining accurate status tracking.
+Execute a technical plan systematically, following established phases, completing tasks in order.
+
+## v2.0 Changes
+
+**Hooks now handle verification automatically:**
+- `AfterTool` hook runs typecheck/lint after code changes
+- `phase-gate` hook detects phase completion
+- `ralph-retry` hook handles persistence mode
+
+You no longer need to manually remember verification steps.
 
 ## Process
 
@@ -23,9 +32,6 @@ find . -name "tasks_*.md" -o -name "plan.md" 2>/dev/null | head -5
 # Load project context
 cat GEMINI.md 2>/dev/null | head -50
 cat conductor/tech-stack.md 2>/dev/null | head -30
-
-# Check git status
-git status --short 2>/dev/null | head -10
 ```
 
 ### 2. Identify Current State
@@ -34,11 +40,6 @@ Parse the plan to find:
 - Which tasks are already complete `[x]`
 - Which task is next `[ ]`
 - Which phase we're in
-
-```bash
-# Count completed vs remaining
-grep -c "\[x\]" [plan_file] && grep -c "\[ \]" [plan_file]
-```
 
 ### 3. Execute Sequentially
 
@@ -57,15 +58,22 @@ Work through tasks in order within each phase.
 - Complete all sub-tasks before marking parent complete
 - Don't start new parent task until previous is done
 
-### Verification Gates
-When you reach a "Conductor - User Manual Verification" task:
+### Automatic Verification (via Hooks)
 
-1. **STOP execution**
-2. **Summarize** what was accomplished
-3. **Verify** against the spec/PRD requirements
-4. **Report** any issues or deviations
-5. **Ask** if user wants to commit changes
-6. **Wait** for confirmation before next phase
+After you modify code files, the `AfterTool` hook automatically:
+1. Runs typecheck (if TypeScript)
+2. Runs lint (if configured)
+3. Injects any errors into context
+
+If errors appear, fix them before proceeding to the next task.
+
+### Phase Gates (via Hooks)
+
+When you complete a phase, the `phase-gate` hook:
+- **Advisory mode (default):** Shows a message suggesting verification
+- **Strict mode:** Requires explicit user confirmation
+
+The hook detects phase completion from your response and handles the gate automatically.
 
 ## Implementation Standards
 
@@ -77,41 +85,27 @@ cat src/[similar-file].ts | head -100
 
 # Check for existing utilities
 grep -r "export function" src/utils/ | head -20
-
-# Understand the data flow
-grep -r "import.*from" src/[target-area]/ | head -20
 ```
 
 ### While Writing Code
 
 **DO:**
-- [x] Follow existing code style
-- [x] Use established patterns from codebase
-- [x] Include appropriate error handling
-- [x] Add meaningful variable/function names
-- [x] Include comments for complex logic
-- [x] Handle null/undefined cases
-- [x] Validate inputs at boundaries
+- Follow existing code style
+- Use established patterns from codebase
+- Include appropriate error handling
+- Add meaningful variable/function names
 
 **DON'T:**
-- [ ] Introduce new patterns without reason
-- [ ] Skip error handling
-- [ ] Leave TODO comments without tracking
-- [ ] Ignore TypeScript errors
+- Introduce new patterns without reason
+- Skip error handling
+- Leave TODO comments without tracking
 
 ### After Each Task
 
-1. Verify acceptance criteria are met
-2. Run relevant tests:
-   ```bash
-   npm test -- --testPathPattern="[relevant]" 2>&1 | tail -20
-   ```
-3. Check for linting/type errors:
-   ```bash
-   npm run typecheck 2>&1 | tail -10
-   npm run lint 2>&1 | tail -10
-   ```
-4. Update task status to `[x]` in plan
+1. The hook verifies automatically
+2. If errors, fix them (errors appear in context)
+3. Update task status to `[x]` in plan
+4. Move to next task
 
 ## Output Formats
 
@@ -124,62 +118,24 @@ grep -r "import.*from" src/[target-area]/ | head -20
 - `path/to/file.ts`: [What was done]
 - `path/to/new-file.ts`: Created - [purpose]
 
-### Acceptance Criteria
-- [x] [Criterion from plan]
-- [x] [Criterion from plan]
-
-### Verification
-```bash
-[Command run and result]
-```
-
 ### Next Task
 [Task number and name]
 ```
 
-### At Verification Gates
+### At Phase Boundaries
+
+The `phase-gate` hook will prompt for verification. Respond with:
 
 ```markdown
-## 🔍 Phase [N] Verification: [Phase Name]
+## 🔍 Phase [N] Complete: [Phase Name]
 
 ### Summary
 [What was accomplished in this phase]
 
 ### Files Changed
-```bash
-git diff --name-only HEAD~[N] 2>/dev/null
-```
 [List of files]
 
-### Verification Against Spec
-- [x] [Requirement from spec]: [How it was met]
-- [x] [Requirement from spec]: [How it was met]
-
-### Tests
-```bash
-npm test 2>&1 | tail -20
-```
-[Test results summary]
-
-### Issues or Deviations
-- [Any problems encountered or deviations from plan]
-- [Or "None - implementation matches plan"]
-
-### Commit Recommendation
-```bash
-git add -A
-git commit -m "feat([scope]): complete Phase [N] - [description]"
-```
-
----
-
-**Ready for Next Phase?**
-Awaiting your confirmation to proceed to Phase [N+1].
-
-Would you like to:
-1. [C]ommit and continue
-2. [R]eview changes first
-3. [F]ix an issue
+### Ready to proceed to Phase [N+1]?
 ```
 
 ### After Completing All Phases
@@ -196,35 +152,20 @@ Would you like to:
 - [x] Phase 3: Frontend Implementation
 - [x] Phase 4: Review & Finalize
 
-### Files Changed (Total)
-[Complete list]
-
-### Test Coverage
-```bash
-npm test -- --coverage 2>&1 | tail -20
-```
-
 ### Next Steps
-- [ ] Code review (run `/omg:review`)
-- [ ] Documentation (run `/omg:docs`)
-- [ ] Deploy/merge
+- Code review (optional)
+- Documentation updates (if needed)
 ```
 
 ## Error Handling
 
 ### If a Task Fails
 
-1. Document what went wrong
-2. Identify root cause:
-   ```bash
-   # Type errors
-   npm run typecheck 2>&1 | grep "error TS"
-   
-   # Runtime errors
-   npm test 2>&1 | grep -A5 "FAIL\|Error"
-   ```
-3. Propose a fix
-4. Ask user: attempt fix, skip, or abort?
+The `AfterTool` hook injects errors into context. When you see them:
+1. Read the error messages
+2. Identify the file and line
+3. Fix the specific issue
+4. Your next edit will be verified again
 
 ### If Blocked by Missing Information
 
@@ -233,28 +174,17 @@ npm test -- --coverage 2>&1 | tail -20
 3. If not, ask the user
 4. Don't proceed with assumptions on critical decisions
 
-### If Tests Keep Failing
+### Persistence Mode
 
-1. Check if test is correct
-2. Check if implementation matches spec
-3. If implementation is wrong, fix it
-4. If test is wrong, update test with justification
-5. Re-run and verify
-
-## Integration with Persistence Skill
-
-When persistence skill is active:
-- Don't give up on failed tasks
-- Try alternative approaches
-- Keep iterating until task passes
-- Track attempt count
-- Escalate after 5 consecutive failures
+If the user activates Ralph mode (includes "ralph" or "persistent" in prompt):
+- The `ralph-retry` hook activates
+- On failure, it suggests alternative approaches
+- Keeps retrying up to configured max
 
 ## Guidelines
 
-- **One task at a time**: Focus, complete, verify, move on
+- **One task at a time**: Focus, complete, move on
+- **Trust the hooks**: Verification happens automatically
 - **Match the codebase**: New code should look like it belongs
 - **Follow the plan**: Don't improvise unless blocked
-- **Flag blockers early**: If you can't proceed, say why
-- **Keep status updated**: Plan should always reflect reality
-- **Respect verification gates**: These are checkpoints, not suggestions
+- **Update status**: Keep plan.md reflecting reality

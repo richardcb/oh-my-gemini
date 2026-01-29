@@ -1,0 +1,111 @@
+{
+  "$schema": "./config.schema.json",
+  "version": "2.0.0",
+  "description": "oh-my-gemini default hook configuration. Copy to .gemini/omg-config.json to customize.",
+
+  "phaseGates": {
+    "enabled": true,
+    "strict": false,
+    "description": "When strict=true, phase gates block progression until user confirms. When false, shows advisory message."
+  },
+
+  "autoVerification": {
+    "enabled": true,
+    "typecheck": true,
+    "lint": true,
+    "timeout": 30000,
+    "description": "Automatically run typecheck and lint after code file modifications."
+  },
+
+  "security": {
+    "gitCheckpoints": true,
+    "blockedCommands": [
+      "rm -rf /",
+      "rm -rf ~",
+      "rm -rf .",
+      "sudo rm -rf",
+      "chmod 777",
+      ":(){ :|:& };:",
+      "> /dev/sda",
+      "mkfs.",
+      "dd if=/dev/zero"
+    ],
+    "blockedPaths": [
+      "node_modules",
+      ".git",
+      "/etc",
+      "/usr",
+      "/var",
+      "/bin",
+      "/sbin",
+      "/boot",
+      "/root"
+    ],
+    "description": "Security settings for file operations and shell commands."
+  },
+
+  "toolFilter": {
+    "enabled": true,
+    "modes": {
+      "researcher": {
+        "description": "Read-only + web search for research tasks",
+        "allowed": [
+          "google_web_search",
+          "web_fetch",
+          "read_file",
+          "list_dir",
+          "glob",
+          "search_file_content"
+        ]
+      },
+      "architect": {
+        "description": "Read-only for analysis and design tasks",
+        "allowed": [
+          "read_file",
+          "list_dir",
+          "glob",
+          "search_file_content",
+          "read_many_files"
+        ]
+      },
+      "executor": {
+        "description": "Full access for implementation (with security gates)",
+        "allowed": "*"
+      }
+    },
+    "description": "Filter available tools based on detected agent mode."
+  },
+
+  "ralph": {
+    "enabled": true,
+    "maxRetries": 5,
+    "triggerPatterns": [
+      "I'm stuck",
+      "I cannot",
+      "I'm unable",
+      "not possible",
+      "failed to",
+      "unable to complete",
+      "can't figure out",
+      "hitting a wall",
+      "doesn't work",
+      "still failing"
+    ],
+    "description": "Persistence mode (Ralph) - automatically retry on failure with alternative approaches."
+  },
+
+  "contextInjection": {
+    "conductorState": true,
+    "gitHistory": {
+      "enabled": true,
+      "onKeywords": ["fix", "bug", "error", "issue", "broken", "failing", "debug"],
+      "commitCount": 5
+    },
+    "recentChanges": {
+      "enabled": true,
+      "onKeywords": ["continue", "resume", "where were we", "pick up", "last time", "earlier"],
+      "fileCount": 10
+    },
+    "description": "Dynamically inject context based on task type."
+  }
+}
