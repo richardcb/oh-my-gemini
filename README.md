@@ -189,6 +189,8 @@ oh-my-gemini/
 │   ├── after-tool.js
 │   ├── phase-gate.js
 │   └── ralph-retry.js
+├── policies/                # TOML policy files (v2.0)
+│   └── omg-security.toml    # Static security rules
 ├── conductor/templates/     # Conductor workflow templates
 ├── mcp/                     # MCP server configurations
 ├── templates/               # Project templates

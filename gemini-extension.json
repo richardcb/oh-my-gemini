@@ -27,6 +27,9 @@
   "skills": [
     "skills"
   ],
+  "policies": [
+    "policies"
+  ],
   "hooks": {
     "SessionStart": [
       {

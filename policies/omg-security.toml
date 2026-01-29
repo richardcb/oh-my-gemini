@@ -1,0 +1,128 @@
+# oh-my-gemini Security Policies
+# 
+# Static security rules for the Gemini CLI Policy Engine.
+# These rules are evaluated by the native policy engine for better performance
+# and compatibility with enterprise admin tier policies.
+#
+# Dynamic, context-aware checks remain in hooks/before-tool.js.
+#
+# Priority Guide:
+#   0-99:   Low priority (can be overridden easily)
+#   100-499: Standard priority
+#   500-999: High priority (rarely overridden)
+
+# =============================================================================
+# DANGEROUS SHELL COMMANDS - DENY
+# =============================================================================
+
+# Block recursive force delete of root/home directories
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ["rm -rf /", "rm -rf ~", "rm -rf ."]
+decision = "deny"
+priority = 900
+deny_message = "🛑 Blocked: Recursive force delete of critical directories is not allowed."
+
+# Block sudo rm commands
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "sudo\\s+rm"
+decision = "deny"
+priority = 900
+deny_message = "🛑 Blocked: Elevated privilege recursive delete is not allowed."
+
+# Block chmod 777 on paths (insecure permissions)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "chmod\\s+(-R\\s+)?777\\s+/"
+decision = "deny"
+priority = 800
+deny_message = "🛑 Blocked: Setting 777 permissions on system paths is a security risk."
+
+# Block fork bomb
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ":(){ :|:& };:"
+decision = "deny"
+priority = 950
+deny_message = "🛑 Blocked: Fork bomb detected."
+
+# Block disk device overwrites
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = ">(\\s*)/dev/(sd|hd|nvme)"
+decision = "deny"
+priority = 950
+deny_message = "🛑 Blocked: Direct disk device writes are not allowed."
+
+# Block mkfs (filesystem formatting)
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = "mkfs."
+decision = "deny"
+priority = 950
+deny_message = "🛑 Blocked: Filesystem formatting is not allowed."
+
+# Block dd to device
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "dd\\s+.*of=/dev/"
+decision = "deny"
+priority = 950
+deny_message = "🛑 Blocked: dd writes to device are not allowed."
+
+# Block piping curl/wget to shell (common malware pattern)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(curl|wget).*\\|\\s*(ba)?sh"
+decision = "deny"
+priority = 800
+deny_message = "🛑 Blocked: Piping remote content directly to shell is risky. Download first, review, then execute."
+
+# =============================================================================
+# PROTECTED PATHS - DENY WRITES
+# =============================================================================
+
+# Block writes to node_modules
+[[rule]]
+toolName = ["write_file", "replace", "edit_file", "create_file"]
+argsPattern = "node_modules"
+decision = "deny"
+priority = 700
+deny_message = "🛑 Protected: Cannot write to node_modules. Use npm/yarn to manage dependencies."
+
+# Block writes to .git directory
+[[rule]]
+toolName = ["write_file", "replace", "edit_file", "create_file"]
+argsPattern = "\\.git[/\\\\]"
+decision = "deny"
+priority = 700
+deny_message = "🛑 Protected: Cannot write directly to .git directory. Use git commands instead."
+
+# Block writes to system directories (Unix)
+[[rule]]
+toolName = ["write_file", "replace", "edit_file", "create_file"]
+argsPattern = "\"path\":\\s*\"/(etc|usr|var|bin|sbin|boot|root)/"
+decision = "deny"
+priority = 800
+deny_message = "🛑 Protected: Cannot write to system directories."
+
+# =============================================================================
+# SAFE READ OPERATIONS - ALLOW
+# =============================================================================
+
+# Allow read operations automatically (they're safe)
+[[rule]]
+toolName = ["read_file", "list_dir", "glob", "search_file_content", "read_many_files"]
+decision = "allow"
+priority = 100
+
+# =============================================================================
+# GIT STATUS/LOG - ALLOW (common safe operations)
+# =============================================================================
+
+[[rule]]
+toolName = "run_shell_command"
+commandPrefix = ["git status", "git log", "git diff", "git branch", "git show"]
+decision = "allow"
+priority = 200
