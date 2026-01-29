@@ -11,6 +11,20 @@ Hooks are scripts that Gemini CLI executes at specific points in its lifecycle. 
 - **Inject context** - Add relevant information based on task type
 - **Track state** - Load and display Conductor workflow status
 
+## Hybrid Security Approach
+
+oh-my-gemini uses **both** hooks and TOML policies for security:
+
+| Mechanism | Location | Use Case |
+|-----------|----------|----------|
+| **TOML Policies** | `policies/omg-security.toml` | Static rules (blocked commands, protected paths) |
+| **Hook Scripts** | `hooks/before-tool.js` | Dynamic, context-aware checks (git checkpoints) |
+
+**Why both?**
+- TOML policies use the native Policy Engine with tiered priority (Default → User → Admin)
+- Hooks provide programmable logic for context-aware decisions
+- Static rules in TOML get better performance (native parsing vs Node.js execution)
+
 ## Hook Files
 
 ### Core Hooks (Phase 1)

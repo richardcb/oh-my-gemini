@@ -4,51 +4,28 @@ This document tracks oh-my-gemini's preparation for Gemini CLI's upcoming SubAge
 
 ## Upstream Status
 
-**Issue:** https://github.com/google-gemini/gemini-cli/issues/3132
-**Status:** In Design (as of January 2026)
-**Assigned:** @allenhutchison, @abhipatel12
+**Documentation:** https://geminicli.com/docs/core/subagents/
+**Status:** ✅ Available (Experimental) - Shipped in Gemini CLI
+**Original Issue:** https://github.com/google-gemini/gemini-cli/issues/3132
 
-### What SubAgent Will Enable
+### What SubAgents Enable
 
 1. **Context Isolation**: SubAgents run in isolated history objects, keeping the main thread clean
-2. **Tool Sandboxing**: Filtered tool access per agent
-3. **Agentic Scopes**: Run tools in isolated mode with only results returning
-4. **Self-Healing Tools**: Tools can iteratively solve problems they encounter
+2. **Tool Sandboxing**: Filtered tool access per agent via `tools` field in YAML frontmatter
+3. **Independent Context Window**: Only final results return to main agent, saving tokens
+4. **Specialized Personas**: Each agent has its own system prompt and behavior
 
 ## Current oh-my-gemini Architecture
 
-### Pre-SubAgent Pattern (Now)
+### SubAgent Pattern (Current Implementation)
+
+oh-my-gemini now uses the official SubAgent system. Agents are defined as markdown files in `.gemini/agents/`:
 
 ```
 ┌─────────────────────────────────────────────┐
 │                Orchestrator                  │
-│  (Single agent, mode switching)             │
-├─────────────────────────────────────────────┤
-│                                             │
-│  ## @researcher mode                        │
-│  [Research, then return to orchestrator]    │
-│                                             │
-│  ## @architect mode                         │
-│  [Design, then return to orchestrator]      │
-│                                             │
-│  ## @executor mode                          │
-│  [Implement, then return to orchestrator]   │
-│                                             │
-└─────────────────────────────────────────────┘
-```
-
-**Limitations:**
-- All work happens in single context (history rot)
-- No parallel execution
-- No true context isolation
-- Tool permissions can't be filtered
-
-### Post-SubAgent Pattern (Future)
-
-```
-┌─────────────────────────────────────────────┐
-│                Orchestrator                  │
-│  (Coordinator, spawns SubAgents)            │
+│  (Coordinator, delegates via tool)          │
+│            delegate_to_agent                │
 ├──────────┬──────────┬───────────────────────┤
 │          │          │                       │
 │  ┌───────▼───────┐ ┌▼────────┐ ┌──────────┐│
@@ -60,7 +37,7 @@ This document tracks oh-my-gemini's preparation for Gemini CLI's upcoming SubAge
 │  │               │ │         │ │          ││
 │  │  Tools:       │ │ Tools:  │ │ Tools:   ││
 │  │  - search     │ │ - read  │ │ - read   ││
-│  │  - fetch      │ │ - grep  │ │ - write  ││
+│  │  - fetch      │ │ - list  │ │ - write  ││
 │  │  - read       │ │ - glob  │ │ - shell  ││
 │  └───────┬───────┘ └────┬────┘ └────┬─────┘│
 │          │              │           │      │
@@ -71,11 +48,38 @@ This document tracks oh-my-gemini's preparation for Gemini CLI's upcoming SubAge
 └────────────────────────────────────────────┘
 ```
 
-**Benefits:**
-- Clean main context (no research/debug noise)
-- True parallel execution possible
-- Tool sandboxing per agent
-- Better reliability and performance
+**Benefits Achieved:**
+- ✅ Clean main context (isolated agent histories)
+- ✅ Tool sandboxing per agent (via YAML `tools` field)
+- ✅ Specialized personas (each agent has own system prompt)
+- ⏳ Parallel execution (not yet implemented in CLI)
+
+### Agent File Format
+
+SubAgents are markdown files with YAML frontmatter:
+
+```markdown
+---
+name: researcher
+description: Deep research agent powered by web search...
+model: gemini-3-flash-preview
+tools:
+  - web_fetch
+  - google_web_search
+  - read_file
+  - list_directory
+---
+
+You are the oh-my-gemini Researcher...
+[System prompt content]
+```
+
+**Key Configuration Fields:**
+- `name`: Agent identifier (used in `delegate_to_agent`)
+- `description`: Helps main agent decide when to use this agent
+- `tools`: Sandboxed tool list (native enforcement)
+- `model`: Optional model override
+- `max_turns`: Optional iteration limit
 
 ## Agent Readiness Checklist
 
@@ -107,61 +111,70 @@ This document tracks oh-my-gemini's preparation for Gemini CLI's upcoming SubAge
 - [x] Clear output format (Completion Status)
 - [ ] Test with actual tool sandboxing (when available)
 
-## Migration Plan
+## Migration Status
 
-### Phase 1: Current (Pre-SubAgent)
-- Use mode switching pattern in Orchestrator
-- Emulate isolation through clear section breaks
-- Use persistence skill for retry logic
-- Manual context management
+### ✅ Phase 1: Pre-SubAgent (Completed)
+- ~~Use mode switching pattern in Orchestrator~~
+- ~~Emulate isolation through clear section breaks~~
+- ~~Use persistence skill for retry logic~~
+- ~~Manual context management~~
 
-### Phase 2: SubAgent Beta
-When SubAgent ships in preview:
-1. Update `gemini-extension.json` to require SubAgent support
-2. Add feature detection for SubAgent availability
-3. Implement spawn_subagent wrapper function
-4. Test each agent in isolated mode
-5. Measure context savings and reliability improvements
+### ✅ Phase 2: SubAgent Implementation (Completed)
+- [x] Created agent definitions in `.gemini/agents/*.md`
+- [x] Configured tool sandboxing via YAML `tools` field
+- [x] Orchestrator uses `delegate_to_agent` for delegation
+- [x] Tested context isolation with SubAgents
+- [x] Added supplementary hook-based filtering for dynamic mode switching
 
-### Phase 3: Full SubAgent
-When SubAgent is stable:
-1. Remove mode-switching fallback code
-2. Enable parallel SubAgent execution
-3. Implement "Ultrapilot" mode (3-5 concurrent agents)
-4. Implement "Swarm" mode (coordinated parallel work)
+### ⏳ Phase 3: Advanced Features (Future)
+When parallel execution is available:
+1. Enable parallel SubAgent execution
+2. Implement "Ultrapilot" mode (3-5 concurrent agents)
+3. Implement "Swarm" mode (coordinated parallel work)
 
-## API Surface (Anticipated)
+## API Surface (Actual)
 
-Based on upstream issue discussion, expected API:
+SubAgents are exposed as tools. The main agent calls them via `delegate_to_agent`:
 
-```javascript
-// Spawn a SubAgent with isolated context
-const result = await spawnSubAgent({
-  agent: "researcher",
-  task: "Find JWT best practices for Express.js",
-  tools: ["web_fetch", "google_web_search"],
-  systemPrompt: researcherPrompt,
-  maxIterations: 5,
-  returnFormat: "markdown"
-});
-
-// Result contains only the final output
-console.log(result.output); // Research Brief markdown
-console.log(result.tokensUsed);
-console.log(result.status); // "complete" | "blocked" | "failed"
 ```
+// Agent definition: .gemini/agents/researcher.md
+---
+name: researcher
+description: Deep research agent...
+tools:
+  - google_web_search
+  - web_fetch  
+  - read_file
+---
+[System prompt]
+
+// Orchestrator delegates by calling the agent as a tool:
+delegate_to_agent(
+  agent_name: "researcher",
+  objective: "Find JWT best practices for Express.js"
+)
+
+// Only the final result returns to the orchestrator
+```
+
+**Key Points:**
+- Agents are defined as markdown files, not programmatic objects
+- The CLI automatically exposes agents as callable tools
+- Tool sandboxing is native (via YAML frontmatter)
+- Context isolation is automatic
 
 ## Tracking
 
-### Upstream Issues to Watch
-- [x] #3132 - SubAgent Architecture (main issue)
-- [x] #11773 - Public Roadmap item
-- [ ] SubAgent API documentation (not yet published)
-- [ ] SubAgent tool filtering (sub-issue)
-- [ ] SubAgent system prompt customization (sub-issue)
+### Upstream Status
+- [x] #3132 - SubAgent Architecture (shipped as experimental)
+- [x] #11773 - Public Roadmap item (completed)
+- [x] SubAgent documentation: https://geminicli.com/docs/core/subagents/
+- [x] Tool filtering: Now via `tools` field in YAML frontmatter
+- [x] System prompt customization: Markdown body becomes system prompt
 
-### oh-my-gemini Issues
-- [ ] Create GitHub issue: "Implement SubAgent when available"
+### oh-my-gemini Status
+- [x] Implemented SubAgents in `.gemini/agents/`
+- [x] Orchestrator uses `delegate_to_agent` tool
 - [ ] Create GitHub issue: "Add Ultrapilot parallel mode"
 - [ ] Create GitHub issue: "Add Swarm coordinated mode"
 
