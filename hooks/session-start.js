@@ -1,100 +1,102 @@
 #!/usr/bin/env node
 /**
- * oh-my-gemini SessionStart Hook
+ * oh-my-gemini Session Start Hook
  *
  * Event: SessionStart
- * Fires: On startup, resume, or clear
+ * Fires: When a new Gemini CLI session begins
  *
  * Purpose:
- * - Load Conductor track state
- * - Inject project context for the session
- * - Display welcome message with current status
+ * - Detect active Conductor tracks and show progress
+ * - Display welcome message with current state
+ * - Initialize session context
  *
- * Input: { source: "startup" | "resume" | "clear", session_id, cwd, ... }
- * Output: { hookSpecificOutput: { additionalContext }, systemMessage }
+ * Input: { session_id, session_type, cwd, ... }
+ * Output: { hookSpecificOutput: { additionalContext }, systemMessage? }
+ * 
+ * Cross-platform compatible (Windows/macOS/Linux)
  */
 
+const path = require('path');
 const {
   readInput,
   writeOutput,
   log,
   findProjectRoot,
-  loadConductorState
+  loadConductorState,
+  isGitRepo,
+  hasUncommittedChanges,
+  platform
 } = require('./lib/utils');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, isFeatureEnabled } = require('./lib/config');
 
-function main() {
+/**
+ * Format progress bar
+ * @param {number} percentage - Progress percentage (0-100)
+ * @param {number} width - Bar width in characters
+ * @returns {string} Formatted progress bar
+ */
+function formatProgressBar(percentage, width = 20) {
+  const filled = Math.round((percentage / 100) * width);
+  const empty = width - filled;
+  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${percentage}%`;
+}
+
+/**
+ * Main hook logic
+ */
+async function main() {
   try {
-    const input = readInput();
-    const source = input.source || 'startup';
+    const input = await readInput();
     const cwd = input.cwd || process.cwd();
-
+    const sessionType = input.session_type || 'start';
+    
+    log(`SessionStart hook fired. CWD: ${cwd}, Type: ${sessionType}`);
+    log(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
+    
+    // Find project root
     const projectRoot = findProjectRoot(cwd);
+    
+    // Load configuration
     const config = loadConfig(projectRoot);
-
+    
+    // Build context
     let additionalContext = '';
     let systemMessage = '';
-
-    // Load Conductor state if enabled
-    if (config.contextInjection.conductorState) {
+    
+    // --- Conductor State ---
+    if (isFeatureEnabled(config, 'contextInjection')) {
       const conductor = loadConductorState(projectRoot);
-
-      if (conductor && conductor.hasActiveTracks) {
-        additionalContext += `
-## 📋 Active Conductor Track
-
-`;
-        additionalContext += `**Track:** ${conductor.trackName}
-`;
-        additionalContext += `**ID:** ${conductor.trackId}
-`;
-        additionalContext += `**Phase:** ${conductor.currentPhase}
-`;
-        additionalContext += `**Progress:** ${conductor.progress.completed}/${conductor.progress.total} tasks (${conductor.progress.percentage}%)
-`;
-
+      
+      if (conductor && conductor.active) {
+        log(`Conductor active: ${conductor.trackName}`);
+        
+        additionalContext += '## 🎼 Conductor Status\n';
+        additionalContext += `**Active Track:** ${conductor.trackName}\n`;
+        additionalContext += `**Progress:** ${formatProgressBar(conductor.progress.percentage)}\n`;
+        additionalContext += `**Tasks:** ${conductor.progress.completed}/${conductor.progress.total} completed\n\n`;
+        
         // Add current task if available
-        if (conductor.plan) {
-          const currentTaskMatch = conductor.plan.match(/- [ ] (d+.d+[^\n]+)/);
-          if (currentTaskMatch) {
-            additionalContext += `**Current Task:** ${currentTaskMatch[1].trim()}
-`;
-          }
+        const currentTask = conductor.plan ? findCurrentTaskFromPlan(conductor.plan) : null;
+        if (currentTask) {
+          additionalContext += `**Current Task:** ${currentTask}\n\n`;
         }
-
-        additionalContext += `
-Use 
-/omg:implement
- to continue working on this track.
-`;
-
-        systemMessage = `📋 Active track: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
+        
+        systemMessage = `🎼 Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
       }
     }
-
-    // Check if experimental agents are enabled
-    // Note: We can't actually read Gemini CLI settings from here,
-    // but we can check if our agents directory exists and warn about setup
-    const fs = require('fs');
-    const path = require('path');
-    const agentsDir = path.join(projectRoot, '.gemini', 'agents');
-
-    if (fs.existsSync(agentsDir)) {
-      const agentFiles = fs.readdirSync(agentsDir).filter(f => f.endsWith('.md'));
-      if (agentFiles.length > 0) {
-        additionalContext += `
-## 🤖 Sub-Agents Available
-
-${agentFiles.map(f => `- \`${f.replace('.md', '')}\``).join('\n')}
-
-> **Note:** Ensure \`experimental.enableAgents: true\` is set in your settings.json for sub-agents to work.
-`;
+    
+    // --- Git Status ---
+    if (isGitRepo(projectRoot)) {
+      const hasChanges = hasUncommittedChanges(projectRoot);
+      if (hasChanges) {
+        additionalContext += '## ⚠️ Git Status\n';
+        additionalContext += 'You have uncommitted changes. Consider committing before major changes.\n\n';
       }
     }
-
-    // Customize message based on session source
-    switch (source) {
-      case 'startup':
+    
+    // --- System Message based on session type ---
+    switch (sessionType) {
+      case 'start':
         systemMessage = systemMessage
           ? `🚀 oh-my-gemini ready | ${systemMessage}`
           : '🚀 oh-my-gemini ready';
@@ -135,6 +137,27 @@ ${agentFiles.map(f => `- \`${f.replace('.md', '')}\``).join('\n')}
     // Don't fail the hook - just output empty response
     writeOutput({});
   }
+}
+
+/**
+ * Find the current task from plan content
+ * @param {string} planContent - Plan markdown content
+ * @returns {string|null} Current task or null
+ */
+function findCurrentTaskFromPlan(planContent) {
+  if (!planContent) return null;
+  
+  const lines = planContent.split('\n');
+  
+  for (const line of lines) {
+    // Match uncompleted task: - [ ] Task text
+    const match = line.match(/^[\s]*-\s*\[\s\]\s*(.+)$/);
+    if (match) {
+      return match[1].trim();
+    }
+  }
+  
+  return null;
 }
 
 main();

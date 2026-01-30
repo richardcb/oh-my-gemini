@@ -1,280 +1,252 @@
 # oh-my-gemini Hooks
 
-This directory contains the hook scripts that integrate oh-my-gemini with Gemini CLI's hook system.
+> Deterministic workflow enforcement for Gemini CLI
 
-## Overview
+This directory contains the hook system that transforms oh-my-gemini from a prompt-based extension into a deterministic workflow engine.
 
-Hooks are scripts that Gemini CLI executes at specific points in its lifecycle. They allow oh-my-gemini to:
+## Cross-Platform Support
 
-- **Enforce security** - Block dangerous commands and protected paths
-- **Auto-verify** - Run typecheck/lint after code changes
-- **Inject context** - Add relevant information based on task type
-- **Track state** - Load and display Conductor workflow status
+**v2.0.1** adds full Windows compatibility:
 
-## Hybrid Security Approach
+- ✅ Works on Windows (cmd.exe / PowerShell)
+- ✅ Works on macOS
+- ✅ Works on Linux
 
-oh-my-gemini uses **both** hooks and TOML policies for security:
+The hooks automatically detect the platform and adjust command execution accordingly.
 
-| Mechanism | Location | Use Case |
-|-----------|----------|----------|
-| **TOML Policies** | `policies/omg-security.toml` | Static rules (blocked commands, protected paths) |
-| **Hook Scripts** | `hooks/before-tool.js` | Dynamic, context-aware checks (git checkpoints) |
+### Windows-Specific Features
 
-**Why both?**
-- TOML policies use the native Policy Engine with tiered priority (Default → User → Admin)
-- Hooks provide programmable logic for context-aware decisions
-- Static rules in TOML get better performance (native parsing vs Node.js execution)
+1. **Command Normalization**: Automatically converts bash-style commands to Windows equivalents
+   - `2>/dev/null` → `2>NUL`
+   - `cat file` → `type file`
+   - Removes `head`, `tail`, `grep` pipes that don't exist on Windows
 
-## Hook Files
+2. **Path Handling**: Uses `path.sep` for cross-platform path construction
 
-### Core Hooks (Phase 1)
+3. **Security Patterns**: Includes Windows-specific dangerous command blocking
+   - `format c:`, `rd /s /q`, `del /f /q`, etc.
+   - Windows system directories are protected
 
-| File | Event | Purpose |
-|------|-------|---------|
-| `session-start.js` | SessionStart | Load Conductor state, show welcome message |
-| `before-agent.js` | BeforeAgent | Inject git history, recent changes, current task |
-| `before-tool.js` | BeforeTool | Security gates, git checkpoints |
-| `after-tool.js` | AfterTool | Auto-verification (typecheck, lint) |
+4. **Git Commands**: Git commands work identically on all platforms (no normalization needed)
 
-### Advanced Hooks (Phase 2)
+5. **npm/npx Commands**: Uses `.cmd` extension on Windows for npm binaries
 
-| File | Event | Purpose |
-|------|-------|---------|
-| `phase-gate.js` | AfterAgent | Conductor phase verification gates (advisory/strict) |
-| `tool-filter.js` | BeforeToolSelection | Agent-mode tool sandboxing |
-| `ralph-retry.js` | AfterAgent | Persistence mode - automatic retry on failure |
+## Architecture
+
+```
+hooks/
+├── lib/
+│   ├── platform.js      # Cross-platform utilities (NEW in v2.0.1)
+│   ├── utils.js         # Shared utilities (I/O, git, etc.)
+│   └── config.js        # Configuration loader
+├── session-start.js     # SessionStart hook
+├── before-agent.js      # BeforeAgent hook (context injection)
+├── before-tool.js       # BeforeTool hook (security gates)
+├── after-tool.js        # AfterTool hook (auto-verification)
+├── tool-filter.js       # BeforeToolSelection hook (mode sandboxing)
+├── phase-gate.js        # AfterAgent hook (Conductor phases)
+├── ralph-retry.js       # AfterAgent hook (persistence mode)
+├── config.default.json  # Default configuration
+└── README.md            # This file
+```
+
+## Hooks Reference
+
+### SessionStart Hook
+
+**Event:** `SessionStart`  
+**File:** `session-start.js`
+
+Fires when a new Gemini CLI session begins.
+
+**Purpose:**
+- Load Conductor track state
+- Display welcome message with progress
+- Initialize session context
+
+### BeforeAgent Hook
+
+**Event:** `BeforeAgent`  
+**File:** `before-agent.js`
+
+Fires after user submits a prompt, before agent planning.
+
+**Purpose:**
+- Inject git history when prompt mentions bugs/fixes
+- Inject recently changed files when continuing work
+- Add current Conductor task context
+
+**Triggers:**
+| Keywords | Context Injected |
+|----------|------------------|
+| fix, bug, error, issue | Recent git commits |
+| continue, resume, pick up | Recently changed files |
+| (always if Conductor active) | Current task info |
+
+### BeforeTool Hook
+
+**Event:** `BeforeTool`  
+**Matcher:** `write_file|replace|edit_file|run_shell_command`  
+**File:** `before-tool.js`
+
+Fires before matched tools execute.
+
+**Purpose:**
+- Block dangerous shell commands
+- Block writes to protected paths
+- Create git checkpoints
+
+**Blocked Commands (examples):**
+```
+# Unix
+rm -rf /, sudo rm, chmod 777, :(){ :|:& };:
+
+# Windows
+format c:, rd /s /q c:\, del /f /q %systemroot%
+```
+
+### AfterTool Hook
+
+**Event:** `AfterTool`  
+**Matcher:** `write_file|replace|edit_file`  
+**File:** `after-tool.js`
+
+Fires after matched tools execute.
+
+**Purpose:**
+- Run TypeScript type checking
+- Run ESLint
+- Inject results into context
+
+### ToolFilter Hook
+
+**Event:** `BeforeToolSelection`  
+**File:** `tool-filter.js`
+
+Filters available tools based on detected agent mode.
+
+**Modes:**
+| Mode | Detection | Allowed Tools |
+|------|-----------|---------------|
+| `researcher` | `@researcher` in prompt | read, search, web |
+| `architect` | `@architect`, `debug:` | read only |
+| `executor` | default | all (with BeforeTool gates) |
+
+### PhaseGate Hook
+
+**Event:** `AfterAgent`  
+**File:** `phase-gate.js`
+
+Enforces Conductor phase verification gates.
+
+**Modes:**
+- **Advisory (default):** Shows warning message
+- **Strict:** Blocks progression until verification
+
+### RalphRetry Hook
+
+**Event:** `AfterAgent`  
+**File:** `ralph-retry.js`
+
+Implements persistence mode (don't give up!).
+
+**Activation:**
+Include `@ralph` or `don't give up` in your prompt.
 
 ## Configuration
 
-Hooks are configured via `config.default.json` (bundled defaults) and can be customized by creating `.gemini/omg-config.json` in your project or `~/.gemini/omg-config.json` for user-wide settings.
+### Configuration Files (Priority Order)
 
-### Example Custom Configuration
+1. **Project:** `.gemini/omg-config.json` (highest)
+2. **User:** `~/.gemini/omg-config.json`
+3. **Defaults:** `hooks/config.default.json` (lowest)
 
-Create `.gemini/omg-config.json`:
-
-```json
-{
-  "phaseGates": {
-    "strict": true
-  },
-  "autoVerification": {
-    "lint": false
-  },
-  "security": {
-    "gitCheckpoints": false
-  }
-}
-```
-
-### Configuration Options
-
-#### Phase Gates
+### Example Configuration
 
 ```json
 {
   "phaseGates": {
     "enabled": true,
     "strict": false
-  }
-}
-```
-
-- `enabled`: Enable/disable phase gate detection
-- `strict`: If `true`, blocks progression until user confirms. If `false`, shows advisory message only.
-
-#### Auto Verification
-
-```json
-{
+  },
   "autoVerification": {
     "enabled": true,
     "typecheck": true,
     "lint": true,
     "timeout": 30000
-  }
-}
-```
-
-- `enabled`: Enable/disable auto-verification
-- `typecheck`: Run TypeScript type checking
-- `lint`: Run linting
-- `timeout`: Maximum time (ms) for verification commands
-
-#### Security
-
-```json
-{
+  },
   "security": {
-    "gitCheckpoints": true,
-    "blockedCommands": ["rm -rf /", "sudo rm"],
-    "blockedPaths": ["node_modules", ".git"]
-  }
-}
-```
-
-- `gitCheckpoints`: Create git commits before file modifications
-- `blockedCommands`: Shell command patterns to block
-- `blockedPaths`: Directory names/paths to protect from writes
-
-#### Tool Filtering
-
-```json
-{
-  "toolFilter": {
-    "enabled": true,
-    "modes": {
-      "researcher": {
-        "allowed": ["google_web_search", "web_fetch", "read_file"]
-      }
-    }
-  }
-}
-```
-
-- `enabled`: Enable/disable tool filtering by agent mode
-- `modes`: Define allowed tools per mode (researcher, architect, executor)
-
-#### Ralph (Persistence Mode)
-
-```json
-{
+    "gitCheckpoints": true
+  },
   "ralph": {
     "enabled": true,
-    "maxRetries": 5,
-    "triggerPatterns": ["I'm stuck", "failed to"]
+    "maxRetries": 5
   }
 }
 ```
-
-- `enabled`: Enable/disable persistence mode
-- `maxRetries`: Maximum retry attempts before escalating to user
-- `triggerPatterns`: Phrases that indicate the agent is stuck
-
-#### Context Injection
-
-```json
-{
-  "contextInjection": {
-    "conductorState": true,
-    "gitHistory": {
-      "enabled": true,
-      "onKeywords": ["fix", "bug"],
-      "commitCount": 5
-    },
-    "recentChanges": {
-      "enabled": true,
-      "onKeywords": ["continue", "resume"],
-      "fileCount": 10
-    }
-  }
-}
-```
-
-- `conductorState`: Inject active Conductor track info
-- `gitHistory`: Inject recent commits when keywords detected
-- `recentChanges`: Inject recently changed files when keywords detected
-
-## How Hooks Work
-
-### Communication
-
-Hooks communicate with Gemini CLI via:
-- **stdin**: Receives JSON input with context
-- **stdout**: Sends JSON output with instructions
-- **stderr**: Logging (doesn't affect JSON parsing)
-
-### Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success - stdout parsed as JSON |
-| 2 | Block - Action is blocked, stderr used as reason |
-| Other | Warning - Non-fatal, CLI continues |
-
-### Example Hook I/O
-
-**BeforeTool Input:**
-```json
-{
-  "hook_event_name": "BeforeTool",
-  "tool_name": "write_file",
-  "tool_input": {
-    "path": "src/index.ts",
-    "content": "..."
-  },
-  "session_id": "abc123",
-  "cwd": "/home/user/project"
-}
-```
-
-**BeforeTool Output (allow):**
-```json
-{}
-```
-
-**BeforeTool Output (block):**
-```json
-{
-  "decision": "deny",
-  "reason": "Cannot write to protected path: node_modules"
-}
-```
-
-## Development
-
-### Testing Hooks Locally
-
-1. Create a test input file:
-```bash
-echo '{"prompt": "fix the bug", "cwd": "/path/to/project"}' > test-input.json
-```
-
-2. Run the hook:
-```bash
-cat test-input.json | node hooks/before-agent.js
-```
-
-3. Check output and stderr for debugging info.
 
 ### Debugging
 
-Hooks log to stderr with the `[omg]` prefix. Enable verbose logging in Gemini CLI to see these messages.
+Enable debug logging with environment variable:
 
-### Adding New Hooks
+```bash
+# Unix
+export OMG_DEBUG=1
 
-1. Create the hook file in `hooks/`
-2. Follow the input/output JSON schema
-3. Add configuration options to `config.default.json`
-4. Update `gemini-extension.json` to register the hook
-5. Document in this README
+# Windows (cmd)
+set OMG_DEBUG=1
+
+# Windows (PowerShell)
+$env:OMG_DEBUG = "1"
+```
 
 ## Troubleshooting
 
-### Hook Not Running
+### Hooks Not Triggering (Windows)
 
-1. Check hooks are enabled: `/hooks panel`
-2. Verify extension is installed: `gemini extensions list`
-3. Check matcher pattern matches the tool name
+1. **Check Node.js is installed and in PATH:**
+   ```cmd
+   node --version
+   ```
 
-### Verification Failing
+2. **Verify hooks are registered:**
+   ```
+   /hooks panel
+   ```
 
-1. Ensure `package.json` has `typecheck` or `lint` scripts
-2. Check timeout isn't too short for your project
-3. Verify the project compiles manually first
+3. **Enable debug mode:**
+   ```cmd
+   set OMG_DEBUG=1
+   ```
 
-### Git Checkpoints Not Created
+### TypeScript Errors Not Showing
 
-1. Ensure you're in a git repository
-2. Check there are uncommitted changes
-3. Verify `gitCheckpoints` is enabled in config
+1. Verify `tsconfig.json` exists in project root
+2. Check that `tsc` is installed: `npm ls typescript`
+3. Try running manually: `npx tsc --noEmit`
 
-## Security Considerations
+## Development
 
-Hooks execute with your user privileges. The oh-my-gemini hooks:
+### Testing Hooks
 
-- Never execute arbitrary user input as commands
-- Block known dangerous patterns by default
-- Create checkpoints before destructive operations
-- Can be disabled per-hook if needed
+```bash
+# Test a hook with sample input
+echo '{"prompt": "fix the bug", "cwd": "."}' | node hooks/before-agent.js
 
-Review the hook code if you have security concerns.
+# Test with debug output
+export OMG_DEBUG=1
+echo '{"prompt": "test"}' | node hooks/session-start.js
+```
+
+## Changelog
+
+### v2.0.1
+- Added full Windows compatibility
+- New `platform.js` module for cross-platform utilities
+- Windows-specific security patterns
+- Fixed `2>/dev/null` and other bash-isms on Windows
+- npm/npx commands use `.cmd` extension on Windows
+
+### v2.0.0
+- Initial hook-based implementation
+- Replaced prompt-based enforcement with deterministic hooks

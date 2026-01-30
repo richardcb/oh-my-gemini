@@ -1,303 +1,249 @@
 #!/usr/bin/env node
 /**
- * oh-my-gemini Ralph Retry Hook
+ * oh-my-gemini Ralph Retry Hook (Persistence Mode)
  *
  * Event: AfterAgent
- * Fires: After every agent response
+ * Fires: When ralph/persistent mode is active
  *
  * Purpose:
- * - Detect when agent indicates it's stuck or failed
- * - Automatically retry with alternative approach suggestions
- * - Track attempt count and escalate after max retries
- *
- * Named after the "Ralph loop" technique - never give up!
+ * - Detect failure indicators in response
+ * - Track attempt count
+ * - Generate alternative approach suggestions
+ * - Force retry up to N attempts
+ * - Escalate to user after max attempts
  *
  * Input: { prompt, prompt_response, stop_hook_active, session_id, cwd, ... }
- * Output: { decision?: "deny", reason?, systemMessage? }
- *
- * Activation: User includes "ralph", "persistent", or "don't give up" in prompt
+ * Output: { decision?: "deny", reason? }
+ * 
+ * Cross-platform compatible (Windows/macOS/Linux)
  */
 
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 const {
   readInput,
   writeOutput,
   log,
-  findProjectRoot
+  debug,
+  findProjectRoot,
+  platform
 } = require('./lib/utils');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+
+// In-memory attempt tracking (resets on new session)
+const attemptTracker = new Map();
 
 /**
- * State file path for tracking retries
+ * Get session-specific attempt count
+ * @param {string} sessionId - Session identifier
+ * @returns {number} Current attempt count
  */
-function getStatePath(projectRoot) {
-  return path.join(projectRoot, '.gemini', '.ralph-state.json');
+function getAttemptCount(sessionId) {
+  return attemptTracker.get(sessionId) || 0;
 }
 
 /**
- * Load retry state from file
+ * Increment attempt count for session
+ * @param {string} sessionId - Session identifier
+ * @returns {number} New attempt count
  */
-function loadRetryState(projectRoot) {
-  const statePath = getStatePath(projectRoot);
+function incrementAttempts(sessionId) {
+  const current = getAttemptCount(sessionId);
+  const newCount = current + 1;
+  attemptTracker.set(sessionId, newCount);
+  return newCount;
+}
+
+/**
+ * Reset attempt count for session
+ * @param {string} sessionId - Session identifier
+ */
+function resetAttempts(sessionId) {
+  attemptTracker.delete(sessionId);
+}
+
+/**
+ * Check if response indicates failure/giving up
+ * @param {string} response - Agent response text
+ * @param {string[]} patterns - Failure patterns to match
+ * @returns {boolean} True if response indicates failure
+ */
+function detectsFailure(response, patterns) {
+  const responseLower = response.toLowerCase();
   
-  try {
-    if (fs.existsSync(statePath)) {
-      const content = fs.readFileSync(statePath, 'utf8');
-      return JSON.parse(content);
+  for (const pattern of patterns) {
+    if (responseLower.includes(pattern.toLowerCase())) {
+      return true;
     }
-  } catch (err) {
-    // Ignore errors, return default state
   }
-
-  return {
-    attempts: 0,
-    lastPrompt: '',
-    lastFailure: '',
-    startTime: null,
-    approaches: []
-  };
-}
-
-/**
- * Save retry state to file
- */
-function saveRetryState(projectRoot, state) {
-  const stateDir = path.join(projectRoot, '.gemini');
-  const statePath = getStatePath(projectRoot);
-
-  try {
-    if (!fs.existsSync(stateDir)) {
-      fs.mkdirSync(stateDir, { recursive: true });
-    }
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
-  } catch (err) {
-    log(`Failed to save retry state: ${err.message}`);
-  }
-}
-
-/**
- * Clear retry state (on success or user intervention)
- */
-function clearRetryState(projectRoot) {
-  const statePath = getStatePath(projectRoot);
   
-  try {
-    if (fs.existsSync(statePath)) {
-      fs.unlinkSync(statePath);
-    }
-  } catch (err) {
-    // Ignore
-  }
-}
-
-/**
- * Check if ralph mode is activated in the prompt
- */
-function isRalphModeActive(prompt) {
-  const lowerPrompt = prompt.toLowerCase();
+  // Additional failure indicators
+  const additionalPatterns = [
+    'apologize',
+    "can't help",
+    "cannot assist",
+    'not able to',
+    'beyond my capabilities',
+    'outside my scope',
+    "don't have access",
+    "doesn't work",
+    "won't work",
+    'impossible to',
+    'no way to'
+  ];
   
-  const activationPatterns = [
-    'ralph',
-    'persistent',
-    "don't give up",
-    'dont give up',
-    'keep trying',
-    'never give up',
-    'try until',
-    'persist until',
-    'ralph mode',
-    'persistence mode'
-  ];
-
-  return activationPatterns.some(pattern => lowerPrompt.includes(pattern));
+  return additionalPatterns.some(p => responseLower.includes(p));
 }
 
 /**
- * Check if response indicates failure/stuck
+ * Check if response indicates success/completion
+ * @param {string} response - Agent response text
+ * @returns {boolean} True if response indicates success
  */
-function detectFailure(response, triggerPatterns) {
-  const lowerResponse = response.toLowerCase();
+function detectsSuccess(response) {
+  const responseLower = response.toLowerCase();
   
-  return triggerPatterns.some(pattern => 
-    lowerResponse.includes(pattern.toLowerCase())
-  );
+  const successIndicators = [
+    'successfully',
+    'completed',
+    'done',
+    'finished',
+    'created',
+    'implemented',
+    'fixed',
+    'resolved',
+    'here is the',
+    "here's the",
+    'i have'
+  ];
+  
+  return successIndicators.some(p => responseLower.includes(p));
 }
 
 /**
- * Check if response indicates success
+ * Generate alternative approach suggestions
+ * @param {number} attemptNumber - Current attempt number
+ * @returns {string} Suggestion text
  */
-function detectSuccess(response) {
-  const successPatterns = [
-    /successfully\s+(completed?|implemented|created|fixed|resolved)/i,
-    /task\s+(is\s+)?(complete|done|finished)/i,
-    /all\s+(tests?\s+)?pass(ing|ed)?/i,
-    /working\s+(correctly|as\s+expected)/i,
-    /problem\s+(is\s+)?(solved|fixed|resolved)/i,
-    /accomplished/i,
-    /✅/,
-    /🎉/
+function generateSuggestion(attemptNumber) {
+  const suggestions = [
+    'Try breaking the problem into smaller steps.',
+    'Consider if there are any prerequisites or dependencies missing.',
+    'Try a different approach or algorithm.',
+    'Check if the environment or configuration needs adjustment.',
+    'Look for related examples or documentation that might help.',
+    'Consider if the problem might be in a different file or location.',
+    'Try searching for similar issues and their solutions.',
+    'Break down what works and what fails to isolate the issue.'
   ];
-
-  return successPatterns.some(pattern => pattern.test(response));
+  
+  // Cycle through suggestions based on attempt number
+  return suggestions[(attemptNumber - 1) % suggestions.length];
 }
 
 /**
- * Generate alternative approach suggestion based on attempt number
+ * Check if ralph mode is active
+ * @param {string} prompt - User prompt
+ * @param {object} context - Additional context
+ * @returns {boolean} True if ralph mode is active
  */
-function getAlternativeSuggestion(attemptNumber, lastFailure) {
-  const approaches = [
-    {
-      title: 'Break it down',
-      suggestion: 'Try breaking the problem into smaller, more manageable steps. What\'s the simplest first step you can take?'
-    },
-    {
-      title: 'Check existing patterns',
-      suggestion: 'Search the codebase for similar patterns or implementations. Use `grep` or `search_file_content` to find examples.'
-    },
-    {
-      title: 'Verify prerequisites',
-      suggestion: 'Check if there are missing dependencies, configurations, or prerequisites. Read relevant config files and package.json.'
-    },
-    {
-      title: 'Simplify first',
-      suggestion: 'Try implementing a minimal version first, then add complexity. Get the basic case working before handling edge cases.'
-    },
-    {
-      title: 'Read the errors',
-      suggestion: 'Carefully read any error messages. Run the failing command again and analyze the exact error output.'
-    },
-    {
-      title: 'Check documentation',
-      suggestion: 'Search for documentation or examples online. Use web search to find how others have solved similar problems.'
-    },
-    {
-      title: 'Different approach',
-      suggestion: 'Consider a fundamentally different approach. Is there another way to achieve the same goal?'
-    },
-    {
-      title: 'Isolate the issue',
-      suggestion: 'Create a minimal reproduction. Remove unrelated code to isolate exactly what\'s failing.'
-    }
-  ];
-
-  const index = (attemptNumber - 1) % approaches.length;
-  return approaches[index];
+function isRalphModeActive(prompt, context = {}) {
+  const combined = `${prompt} ${JSON.stringify(context)}`.toLowerCase();
+  
+  return combined.includes('@ralph') ||
+         combined.includes('persistent:') ||
+         combined.includes('persist:') ||
+         combined.includes("don't give up") ||
+         combined.includes('keep trying');
 }
 
-function main() {
+/**
+ * Main hook logic
+ */
+async function main() {
   try {
-    const input = readInput();
+    const input = await readInput();
     const prompt = input.prompt || '';
     const promptResponse = input.prompt_response || '';
-    const stopHookActive = input.stop_hook_active || false;
+    const sessionId = input.session_id || 'default';
     const cwd = input.cwd || process.cwd();
-
+    
+    log('RalphRetry hook fired');
+    debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
+    
+    // Find project root
     const projectRoot = findProjectRoot(cwd);
+    
+    // Load configuration
     const config = loadConfig(projectRoot);
-
-    // Skip if ralph mode is disabled
-    if (!config.ralph || !config.ralph.enabled) {
+    
+    // Check if ralph mode is enabled in config
+    if (!isFeatureEnabled(config, 'ralph')) {
+      log('Ralph mode is disabled in config');
       writeOutput({});
       return;
     }
-
-    // Check if ralph mode is activated in the user's prompt
+    
+    // Check if ralph mode is active for this prompt
     if (!isRalphModeActive(prompt)) {
-      // Clear any existing state since we're not in ralph mode
-      clearRetryState(projectRoot);
+      log('Ralph mode not active for this prompt');
       writeOutput({});
       return;
     }
-
-    // Don't re-trigger if already in a retry (stop_hook_active means we're retrying)
-    if (stopHookActive) {
-      log('Already in retry loop, skipping ralph hook');
-      writeOutput({});
-      return;
-    }
-
-    // Load current state
-    const state = loadRetryState(projectRoot);
-    const maxRetries = config.ralph.maxRetries || 5;
-    const triggerPatterns = config.ralph.triggerPatterns || [
+    
+    const ralphConfig = getConfigValue(config, 'ralph', {});
+    const maxRetries = ralphConfig.maxRetries || 5;
+    const triggerPatterns = ralphConfig.triggerPatterns || [
       "I'm stuck",
       'I cannot',
       "I'm unable",
+      'not possible',
       'failed to'
     ];
-
-    // Check for success - reset state if successful
-    if (detectSuccess(promptResponse)) {
-      log('Task appears successful, clearing ralph state');
-      clearRetryState(projectRoot);
-      
-      writeOutput({
-        systemMessage: `🎉 Ralph mode: Task completed after ${state.attempts} attempt(s)!`
-      });
-      return;
-    }
-
-    // Check for failure indicators
-    if (!detectFailure(promptResponse, triggerPatterns)) {
-      // No failure detected, continue normally
+    
+    // Check if response indicates success
+    if (detectsSuccess(promptResponse)) {
+      log('Response indicates success, resetting attempts');
+      resetAttempts(sessionId);
       writeOutput({});
       return;
     }
-
-    // Failure detected - increment attempts
-    state.attempts++;
-    state.lastPrompt = prompt;
-    state.lastFailure = promptResponse.slice(0, 500); // Store truncated failure
-    state.startTime = state.startTime || new Date().toISOString();
-
-    log(`Ralph mode: Attempt ${state.attempts}/${maxRetries}`);
-
-    // Check for max retries exceeded
-    if (state.attempts >= maxRetries) {
+    
+    // Check if response indicates failure
+    if (!detectsFailure(promptResponse, triggerPatterns)) {
+      log('Response does not indicate failure');
+      writeOutput({});
+      return;
+    }
+    
+    // Increment attempt count
+    const attempts = incrementAttempts(sessionId);
+    log(`Failure detected. Attempt ${attempts}/${maxRetries}`);
+    
+    if (attempts >= maxRetries) {
+      // Max retries reached - escalate to user
       log('Max retries reached, escalating to user');
+      resetAttempts(sessionId);
       
-      // Clear state for next time
-      clearRetryState(projectRoot);
-
       writeOutput({
-        systemMessage: `⚠️ **Ralph mode: Max retries (${maxRetries}) reached**\n\nI've tried ${state.attempts} different approaches but couldn't complete the task. Please provide guidance or try a different approach.`
+        systemMessage: `🛑 Ralph Mode: Reached ${maxRetries} attempts. The task may need human intervention or a different approach. Here's what was tried - please provide guidance.`
       });
       return;
     }
-
-    // Get alternative suggestion
-    const alternative = getAlternativeSuggestion(state.attempts, state.lastFailure);
     
-    // Track which approaches we've suggested
-    state.approaches.push(alternative.title);
-    saveRetryState(projectRoot, state);
-
-    // Build retry prompt
-    const retryReason = `
-🔄 **Ralph Mode: Attempt ${state.attempts}/${maxRetries}**
-
-The previous approach didn't work. Let's try something different.
-
-**Strategy: ${alternative.title}**
-${alternative.suggestion}
-
-**What to do:**
-1. Take a step back and analyze what went wrong
-2. Try the suggested approach above
-3. If that doesn't work either, I'll suggest another approach
-
-Don't give up! We'll find a way to make this work.
-`.trim();
-
+    // Generate retry prompt
+    const suggestion = generateSuggestion(attempts);
+    const retryReason = `🔄 Ralph Mode (Attempt ${attempts}/${maxRetries}): Don't give up! ${suggestion} Please try again with a different approach.`;
+    
+    log(`Forcing retry: ${suggestion}`);
+    
     writeOutput({
       decision: 'deny',
       reason: retryReason
     });
-
   } catch (err) {
-    log(`Ralph retry hook error: ${err.message}`);
-    // On error, don't block
+    log(`RalphRetry hook error: ${err.message}`);
+    // Don't fail the hook
     writeOutput({});
   }
 }

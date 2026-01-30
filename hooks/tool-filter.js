@@ -3,188 +3,98 @@
  * oh-my-gemini Tool Filter Hook
  *
  * Event: BeforeToolSelection
- * Fires: Before LLM selects which tools to use
+ * Fires: Before tool selection for agent
  *
  * Purpose:
- * - Detect current agent mode (researcher, architect, executor)
+ * - Detect current agent mode from context
  * - Filter available tools based on mode
- * - Enforce tool sandboxing for safety
+ * - researcher: read + search only
+ * - architect: read only
+ * - executor: full access (with BeforeTool safety)
  *
- * Modes:
- * - researcher: Read-only + web search (no writes, no shell)
- * - architect: Read-only (analysis and design, no writes)
- * - executor: Full access (with BeforeTool security gates)
- *
- * Input: { llm_request: { model, messages, config, toolConfig }, ... }
+ * Input: { llm_request, session_id, cwd, ... }
  * Output: { hookSpecificOutput: { toolConfig: { mode?, allowedFunctionNames? } } }
- *
- * Note: This hook cannot use decision/continue/systemMessage - only toolConfig
+ * 
+ * Cross-platform compatible (Windows/macOS/Linux)
  */
 
 const {
   readInput,
   writeOutput,
   log,
+  debug,
   findProjectRoot,
   detectAgentMode,
-  loadConductorState
+  platform
 } = require('./lib/utils');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
 /**
- * Extract recent conversation content for mode detection
+ * Main hook logic
  */
-function extractRecentContent(messages, count = 5) {
-  if (!messages || !Array.isArray(messages)) {
-    return '';
-  }
-
-  return messages
-    .slice(-count)
-    .map(m => {
-      if (typeof m.content === 'string') {
-        return m.content;
-      }
-      if (Array.isArray(m.content)) {
-        return m.content
-          .filter(p => typeof p === 'string' || p.type === 'text')
-          .map(p => (typeof p === 'string' ? p : p.text || ''))
-          .join(' ');
-      }
-      return '';
-    })
-    .join('\n');
-}
-
-/**
- * Detect mode from Conductor phase
- * Earlier phases (data/backend) might need different tools than later (frontend)
- */
-function detectModeFromConductorPhase(conductor) {
-  if (!conductor || !conductor.currentPhase) {
-    return null;
-  }
-
-  const phase = conductor.currentPhase.toLowerCase();
-
-  // Research/planning phases
-  if (phase.includes('discovery') || phase.includes('research') || phase.includes('planning')) {
-    return 'researcher';
-  }
-
-  // Design phases
-  if (phase.includes('design') || phase.includes('architect')) {
-    return 'architect';
-  }
-
-  // Implementation phases - full access
-  return null; // Let content-based detection decide
-}
-
-/**
- * Get allowed tools for a mode from config
- */
-function getAllowedTools(config, mode) {
-  const modeConfig = config.toolFilter?.modes?.[mode];
-  
-  if (!modeConfig) {
-    return null; // No filtering
-  }
-
-  if (modeConfig.allowed === '*') {
-    return null; // All tools allowed
-  }
-
-  if (Array.isArray(modeConfig.allowed)) {
-    return modeConfig.allowed;
-  }
-
-  return null;
-}
-
-/**
- * Default tool sets if not configured
- */
-const DEFAULT_TOOL_SETS = {
-  researcher: [
-    'google_web_search',
-    'web_fetch',
-    'read_file',
-    'read_many_files',
-    'list_dir',
-    'glob',
-    'search_file_content',
-    'grep'
-  ],
-  architect: [
-    'read_file',
-    'read_many_files',
-    'list_dir',
-    'glob',
-    'search_file_content',
-    'grep',
-    'find_by_name'
-  ],
-  executor: null // All tools
-};
-
-function main() {
+async function main() {
   try {
-    const input = readInput();
+    const input = await readInput();
     const llmRequest = input.llm_request || {};
-    const messages = llmRequest.messages || [];
     const cwd = input.cwd || process.cwd();
-
+    
+    log('ToolFilter hook fired');
+    debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
+    
+    // Find project root
     const projectRoot = findProjectRoot(cwd);
+    
+    // Load configuration
     const config = loadConfig(projectRoot);
-
-    // Skip if tool filtering is disabled
-    if (!config.toolFilter || !config.toolFilter.enabled) {
+    
+    // Check if tool filtering is enabled
+    if (!isFeatureEnabled(config, 'toolFilter')) {
+      log('Tool filtering is disabled');
       writeOutput({});
       return;
     }
-
-    // Extract recent conversation for mode detection
-    const recentContent = extractRecentContent(messages);
-
-    // Try to detect mode from Conductor phase first
-    const conductor = loadConductorState(projectRoot);
-    let mode = detectModeFromConductorPhase(conductor);
-
-    // Fall back to content-based detection
-    if (!mode) {
-      mode = detectAgentMode(recentContent);
-    }
-
-    log(`Detected agent mode: ${mode}`);
-
-    // Get allowed tools for this mode
-    let allowedTools = getAllowedTools(config, mode);
-
-    // Fall back to defaults if not configured
-    if (!allowedTools && DEFAULT_TOOL_SETS[mode]) {
-      allowedTools = DEFAULT_TOOL_SETS[mode];
-    }
-
-    // No filtering needed
-    if (!allowedTools) {
+    
+    // Extract prompt from LLM request
+    const messages = llmRequest.messages || [];
+    const lastUserMessage = messages
+      .filter(m => m.role === 'user')
+      .pop();
+    
+    const prompt = lastUserMessage?.content || '';
+    
+    // Detect agent mode
+    const mode = detectAgentMode(prompt);
+    log(`Detected mode: ${mode}`);
+    
+    // Get tool configuration for this mode
+    const toolFilterConfig = getConfigValue(config, 'toolFilter', {});
+    const modeConfig = toolFilterConfig.modes?.[mode];
+    
+    if (!modeConfig) {
+      log(`No tool config for mode: ${mode}`);
       writeOutput({});
       return;
     }
-
-    log(`Filtering tools for ${mode} mode: ${allowedTools.length} tools allowed`);
-
-    writeOutput({
+    
+    // Build output
+    const output = {
       hookSpecificOutput: {
         toolConfig: {
-          allowedFunctionNames: allowedTools
+          mode: mode
         }
       }
-    });
-
+    };
+    
+    // If mode has specific allowed tools (not '*'), set them
+    if (modeConfig.allowed && modeConfig.allowed !== '*') {
+      output.hookSpecificOutput.toolConfig.allowedFunctionNames = modeConfig.allowed;
+      log(`Filtering tools for ${mode}: ${modeConfig.allowed.join(', ')}`);
+    }
+    
+    writeOutput(output);
   } catch (err) {
-    log(`Tool filter hook error: ${err.message}`);
-    // On error, don't filter - allow all tools
+    log(`ToolFilter hook error: ${err.message}`);
+    // Don't fail the hook
     writeOutput({});
   }
 }

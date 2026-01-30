@@ -4,164 +4,153 @@
  * Loads hook configuration with cascading priority:
  * 1. Project: .gemini/omg-config.json (highest)
  * 2. User: ~/.gemini/omg-config.json
- * 3. Defaults: bundled config.default.json (lowest)
+ * 3. Defaults: hooks/config.default.json (lowest)
+ * 
+ * Updated for Windows/Unix cross-platform compatibility.
  */
 
 const fs = require('fs');
 const path = require('path');
+const platform = require('./platform');
 
-// Path to default config bundled with the extension
-const DEFAULT_CONFIG_PATH = path.join(__dirname, '..', 'config.default.json');
+// Default configuration
+const DEFAULT_CONFIG = {
+  version: '2.0.1',
+  
+  phaseGates: {
+    enabled: true,
+    strict: false,
+    phases: ['data-layer', 'backend', 'frontend', 'review']
+  },
+  
+  autoVerification: {
+    enabled: true,
+    typecheck: true,
+    lint: true,
+    timeout: 30000
+  },
+  
+  security: {
+    gitCheckpoints: true,
+    blockedCommands: [
+      // Unix dangerous commands
+      'rm -rf /',
+      'rm -rf ~',
+      'rm -rf .',
+      'sudo rm',
+      'chmod 777',
+      ':(){ :|:& };:',
+      'mkfs.',
+      'dd if=',
+      '> /dev/sd',
+      // Windows dangerous commands
+      'format c:',
+      'rd /s /q c:',
+      'del /f /s /q c:',
+      'rmdir /s /q c:',
+      'del /f /s /q %systemroot%',
+      'reg delete hk'
+    ],
+    blockedPaths: [
+      'node_modules',
+      '.git',
+      // Unix paths
+      '/etc',
+      '/usr',
+      '/bin',
+      '/sbin',
+      '/var',
+      '/root',
+      // Windows paths
+      'C:\\Windows',
+      'C:\\Program Files',
+      'C:\\Program Files (x86)',
+      '%SystemRoot%',
+      '%ProgramFiles%'
+    ]
+  },
+  
+  toolFilter: {
+    enabled: true,
+    modes: {
+      researcher: {
+        allowed: [
+          'google_web_search',
+          'web_fetch',
+          'read_file',
+          'list_dir',
+          'glob'
+        ]
+      },
+      architect: {
+        allowed: [
+          'read_file',
+          'list_dir',
+          'glob',
+          'search_file_content'
+        ]
+      },
+      executor: {
+        allowed: '*'
+      }
+    }
+  },
+  
+  ralph: {
+    enabled: true,
+    maxRetries: 5,
+    triggerPatterns: [
+      "I'm stuck",
+      'I cannot',
+      "I'm unable",
+      'not possible',
+      'failed to'
+    ]
+  },
+  
+  contextInjection: {
+    conductorState: true,
+    gitHistory: {
+      enabled: true,
+      onKeywords: ['fix', 'bug', 'error', 'issue', 'broken', 'crash'],
+      commitCount: 5
+    },
+    recentChanges: {
+      enabled: true,
+      onKeywords: ['continue', 'resume', 'where were we', 'pick up', 'last time'],
+      fileCount: 10
+    }
+  },
+  
+  debug: {
+    enabled: false,
+    logFile: null,
+    verbose: false
+  }
+};
 
 /**
  * Deep merge two objects
- * Source values override target values
- * @param {object} target - Base object
- * @param {object} source - Override object
+ * @param {object} target - Target object
+ * @param {object} source - Source object to merge
  * @returns {object} Merged object
  */
 function deepMerge(target, source) {
-  if (!source || typeof source !== 'object') {
-    return target;
-  }
-
   const result = { ...target };
-
-  for (const key in source) {
-    if (Object.prototype.hasOwnProperty.call(source, key)) {
-      const sourceValue = source[key];
-      const targetValue = result[key];
-
-      if (
-        sourceValue &&
-        typeof sourceValue === 'object' &&
-        !Array.isArray(sourceValue) &&
-        targetValue &&
-        typeof targetValue === 'object' &&
-        !Array.isArray(targetValue)
-      ) {
-        // Recursively merge objects
-        result[key] = deepMerge(targetValue, sourceValue);
-      } else {
-        // Override with source value
-        result[key] = sourceValue;
-      }
+  
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(result[key] || {}, source[key]);
+    } else {
+      result[key] = source[key];
     }
   }
-
+  
   return result;
 }
 
 /**
- * Load default configuration
- * @returns {object} Default config
- */
-function loadDefaultConfig() {
-  try {
-    if (fs.existsSync(DEFAULT_CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(DEFAULT_CONFIG_PATH, 'utf8'));
-    }
-  } catch (err) {
-    // Fall through to hardcoded defaults
-  }
-
-  // Hardcoded fallback defaults
-  return {
-    version: '2.0.0',
-
-    phaseGates: {
-      enabled: true,
-      strict: false,
-      phases: ['data-layer', 'backend', 'frontend', 'review']
-    },
-
-    autoVerification: {
-      enabled: true,
-      typecheck: true,
-      lint: true,
-      timeout: 30000
-    },
-
-    security: {
-      gitCheckpoints: true,
-      blockedCommands: [
-        'rm -rf /',
-        'rm -rf ~',
-        'rm -rf .',
-        'sudo rm',
-        'chmod 777',
-        ':(){ :|:& };:'
-      ],
-      blockedPaths: [
-        'node_modules',
-        '.git',
-        '/etc',
-        '/usr',
-        '/var',
-        '/bin',
-        '/sbin'
-      ]
-    },
-
-    toolFilter: {
-      enabled: true,
-      modes: {
-        researcher: {
-          allowed: [
-            'google_web_search',
-            'web_fetch',
-            'read_file',
-            'list_dir',
-            'glob'
-          ]
-        },
-        architect: {
-          allowed: [
-            'read_file',
-            'list_dir',
-            'glob',
-            'search_file_content'
-          ]
-        },
-        executor: {
-          allowed: '*'
-        }
-      }
-    },
-
-    ralph: {
-      enabled: true,
-      maxRetries: 5,
-      triggerPatterns: [
-        "I'm stuck",
-        'I cannot',
-        "I'm unable",
-        'not possible',
-        'failed to',
-        'unable to complete',
-        "can't figure out",
-        'hitting a wall'
-      ]
-    },
-
-    contextInjection: {
-      conductorState: true,
-      gitHistory: {
-        enabled: true,
-        onKeywords: ['fix', 'bug', 'error', 'issue', 'broken', 'failing'],
-        commitCount: 5
-      },
-      recentChanges: {
-        enabled: true,
-        onKeywords: ['continue', 'resume', 'where were we', 'pick up', 'last time'],
-        fileCount: 10
-      }
-    }
-  };
-}
-
-/**
- * Load user configuration from a file
+ * Load configuration file if it exists
  * @param {string} configPath - Path to config file
  * @returns {object|null} Parsed config or null
  */
@@ -172,7 +161,10 @@ function loadConfigFile(configPath) {
       return JSON.parse(content);
     }
   } catch (err) {
-    // Invalid JSON or file not readable - ignore
+    // Log error but don't fail
+    if (process.env.OMG_DEBUG) {
+      process.stderr.write(`[omg] Failed to load config from ${configPath}: ${err.message}\n`);
+    }
   }
   return null;
 }
@@ -184,60 +176,108 @@ function loadConfigFile(configPath) {
  */
 function loadConfig(projectRoot) {
   // Start with defaults
-  const defaults = loadDefaultConfig();
-
-  // Config file locations in priority order (lowest to highest)
-  const configPaths = [];
-
-  // User config (lower priority)
-  const homeDir = process.env.HOME || process.env.USERPROFILE;
-  if (homeDir) {
-    configPaths.push(path.join(homeDir, '.gemini', 'omg-config.json'));
+  let config = { ...DEFAULT_CONFIG };
+  
+  // Try to load extension defaults (may have been updated)
+  const extensionDefaultPath = path.join(__dirname, '..', 'config.default.json');
+  const extensionDefaults = loadConfigFile(extensionDefaultPath);
+  if (extensionDefaults) {
+    config = deepMerge(config, extensionDefaults);
   }
-
-  // Project config (higher priority)
+  
+  // Load user config from home directory
+  const homeDir = platform.getHomeDir();
+  const userConfigPath = path.join(homeDir, '.gemini', 'omg-config.json');
+  const userConfig = loadConfigFile(userConfigPath);
+  if (userConfig) {
+    config = deepMerge(config, userConfig);
+  }
+  
+  // Load project config (highest priority)
   if (projectRoot) {
-    configPaths.push(path.join(projectRoot, '.gemini', 'omg-config.json'));
-  }
-
-  // Merge configs in order
-  let config = defaults;
-
-  for (const configPath of configPaths) {
-    const userConfig = loadConfigFile(configPath);
-    if (userConfig) {
-      config = deepMerge(config, userConfig);
+    const projectConfigPath = path.join(projectRoot, '.gemini', 'omg-config.json');
+    const projectConfig = loadConfigFile(projectConfigPath);
+    if (projectConfig) {
+      config = deepMerge(config, projectConfig);
     }
   }
-
+  
   return config;
 }
 
 /**
- * Get a specific config value by path
- * @param {object} config - Configuration object
- * @param {string} keyPath - Dot-separated path (e.g., 'phaseGates.strict')
- * @param {*} defaultValue - Default value if not found
- * @returns {*} Config value
+ * Validate configuration object
+ * @param {object} config - Configuration to validate
+ * @returns {object} Validation result with valid flag and errors array
  */
-function getConfigValue(config, keyPath, defaultValue = undefined) {
-  const keys = keyPath.split('.');
-  let value = config;
-
-  for (const key of keys) {
-    if (value && typeof value === 'object' && key in value) {
-      value = value[key];
-    } else {
-      return defaultValue;
+function validateConfig(config) {
+  const errors = [];
+  
+  // Check required fields
+  if (!config.version) {
+    errors.push('Missing version field');
+  }
+  
+  // Validate security settings
+  if (config.security) {
+    if (config.security.blockedCommands && !Array.isArray(config.security.blockedCommands)) {
+      errors.push('security.blockedCommands must be an array');
+    }
+    if (config.security.blockedPaths && !Array.isArray(config.security.blockedPaths)) {
+      errors.push('security.blockedPaths must be an array');
     }
   }
+  
+  // Validate tool filter modes
+  if (config.toolFilter && config.toolFilter.modes) {
+    for (const [mode, settings] of Object.entries(config.toolFilter.modes)) {
+      if (settings.allowed !== '*' && !Array.isArray(settings.allowed)) {
+        errors.push(`toolFilter.modes.${mode}.allowed must be '*' or an array`);
+      }
+    }
+  }
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
 
-  return value;
+/**
+ * Get a specific config value with dot notation
+ * @param {object} config - Configuration object
+ * @param {string} key - Dot-notation key (e.g., 'security.gitCheckpoints')
+ * @param {*} defaultValue - Default value if not found
+ * @returns {*} Config value or default
+ */
+function getConfigValue(config, key, defaultValue = undefined) {
+  const parts = key.split('.');
+  let value = config;
+  
+  for (const part of parts) {
+    if (value === undefined || value === null || typeof value !== 'object') {
+      return defaultValue;
+    }
+    value = value[part];
+  }
+  
+  return value !== undefined ? value : defaultValue;
+}
+
+/**
+ * Check if a feature is enabled in config
+ * @param {object} config - Configuration object
+ * @param {string} feature - Feature key (e.g., 'phaseGates', 'autoVerification')
+ * @returns {boolean} True if feature is enabled
+ */
+function isFeatureEnabled(config, feature) {
+  return getConfigValue(config, `${feature}.enabled`, false);
 }
 
 module.exports = {
   loadConfig,
-  loadDefaultConfig,
+  validateConfig,
   getConfigValue,
-  deepMerge
+  isFeatureEnabled,
+  DEFAULT_CONFIG
 };

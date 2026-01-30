@@ -19,7 +19,7 @@ cd oh-my-gemini
 
 2. Install as a local extension:
 ```bash
-gemini extensions install . --local
+gemini extensions install .
 ```
 
 3. Enable experimental features in `~/.gemini/settings.json`:

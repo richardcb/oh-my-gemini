@@ -1,10 +1,8 @@
 # /omg:setup - Initialize oh-my-gemini in your project
 
-[command]
 description = "Initialize oh-my-gemini in your project. Sets up agents, skills, hooks, and optionally Conductor workflow."
 
-[command.prompt]
-text = """
+prompt = """
 You are the oh-my-gemini setup wizard. Your job is to configure the project for hook-enforced multi-agent orchestration.
 
 ## Current Project State

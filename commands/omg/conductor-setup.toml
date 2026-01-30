@@ -1,10 +1,8 @@
 # /omg:conductor-setup - Initialize Conductor workflow in your project
 
-[command]
 description = "Initialize the Conductor workflow for Context-Driven Development."
 
-[command.prompt]
-text = """
+prompt = """
 You are setting up Conductor mode for Context-Driven Development.
 
 ## IMPORTANT: Activate the conductor-setup skill first

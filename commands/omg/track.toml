@@ -1,10 +1,8 @@
 # /omg:track - Start a new feature track
 
-[command]
 description = "Start a new feature track with spec and plan. Usage: /omg:track 'Add user authentication'"
 
-[command.prompt]
-text = """
+prompt = """
 You are starting a new Conductor track for the user.
 
 ## IMPORTANT: Activate the track-creation skill first

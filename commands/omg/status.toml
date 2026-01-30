@@ -1,10 +1,8 @@
 # /omg:status - Show current orchestration state with real filesystem data
 
-[command]
 description = "Display the current state of oh-my-gemini: active tracks, agent activity, and configuration status."
 
-[command.prompt]
-text = """
+prompt = """
 You are the oh-my-gemini status reporter. Generate a comprehensive status report using the REAL data below.
 
 ## Live Filesystem Data
@@ -26,7 +24,7 @@ You are the oh-my-gemini status reporter. Generate a comprehensive status report
 
 ### Active Track Details
 ```
-!{find conductor/tracks -name "metadata.json" -exec cat {} \; 2>/dev/null || echo "NO_TRACKS"}
+!{find conductor/tracks -name "metadata.json" -exec cat {} \\; 2>/dev/null || echo "NO_TRACKS"}
 ```
 
 ### Recent Git Activity

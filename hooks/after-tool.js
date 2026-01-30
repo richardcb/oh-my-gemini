@@ -7,192 +7,280 @@
  * Fires: After a matched tool executes
  *
  * Purpose:
- * - Run typecheck after TypeScript/JavaScript file modifications
- * - Run lint after code file modifications
- * - Inject verification results as context for the agent
+ * - Run typecheck for TypeScript/JavaScript files
+ * - Run lint for code files
+ * - Inject results as context for agent
  *
- * Input: { tool_name, tool_input, tool_response, mcp_context?, session_id, cwd, ... }
- * Output: { hookSpecificOutput?: { additionalContext }, systemMessage?, decision?, reason? }
+ * Input: { tool_name, tool_input, tool_response, session_id, cwd, ... }
+ * Output: { hookSpecificOutput: { additionalContext }, systemMessage? }
+ * 
+ * Cross-platform compatible (Windows/macOS/Linux)
  */
 
 const path = require('path');
+const fs = require('fs');
 const {
   readInput,
   writeOutput,
   log,
+  debug,
   findProjectRoot,
-  runCommand,
+  runNpmCommand,
   shouldVerify,
-  hasScript
+  hasScript,
+  platform
 } = require('./lib/utils');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
 /**
- * Run typecheck and return results
+ * Run TypeScript type checking
+ * @param {string} projectRoot - Project root directory
+ * @param {string} filePath - File that was modified
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {object} Result with success, output
  */
-function runTypecheck(projectRoot, timeout) {
-  // Try different typecheck commands in order of preference
-  const commands = [
-    { check: () => hasScript('typecheck', projectRoot), cmd: 'npm run typecheck' },
-    { check: () => hasScript('type-check', projectRoot), cmd: 'npm run type-check' },
-    { check: () => hasScript('tsc', projectRoot), cmd: 'npm run tsc' },
-    { check: () => true, cmd: 'npx tsc --noEmit' } // Fallback
-  ];
-
-  for (const { check, cmd } of commands) {
-    if (check()) {
-      const result = runCommand(`${cmd} 2>&1`, { cwd: projectRoot, timeout });
+function runTypeCheck(projectRoot, filePath, timeout = 30000) {
+  // Check for TypeScript config
+  const hasTsConfig = fs.existsSync(path.join(projectRoot, 'tsconfig.json'));
+  
+  if (!hasTsConfig) {
+    debug('No tsconfig.json found, skipping typecheck');
+    return { success: true, output: '', skipped: true };
+  }
+  
+  // Check if project has a typecheck script
+  if (hasScript('typecheck', projectRoot)) {
+    debug('Running npm run typecheck');
+    return runNpmCommand('run', 'typecheck', { cwd: projectRoot, timeout });
+  }
+  
+  if (hasScript('type-check', projectRoot)) {
+    debug('Running npm run type-check');
+    return runNpmCommand('run', 'type-check', { cwd: projectRoot, timeout });
+  }
+  
+  // Fall back to tsc --noEmit
+  // Check if tsc is available
+  const tscPath = path.join(projectRoot, 'node_modules', '.bin', platform.isWindows ? 'tsc.cmd' : 'tsc');
+  
+  if (fs.existsSync(tscPath)) {
+    debug('Running tsc --noEmit');
+    const { execSync } = require('child_process');
+    
+    try {
+      const output = execSync(`"${tscPath}" --noEmit`, {
+        encoding: 'utf8',
+        timeout,
+        cwd: projectRoot,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return { success: true, output: output || '' };
+    } catch (err) {
       return {
-        ran: true,
-        command: cmd,
-        success: result.success,
-        output: result.output
+        success: false,
+        output: err.stdout || err.stderr || err.message || ''
       };
     }
   }
-
-  return { ran: false };
-}
-
-/**
- * Run lint and return results
- */
-function runLint(projectRoot, timeout) {
-  if (!hasScript('lint', projectRoot)) {
-    return { ran: false };
-  }
-
-  const result = runCommand('npm run lint 2>&1', { cwd: projectRoot, timeout });
-  return {
-    ran: true,
-    command: 'npm run lint',
-    success: result.success,
-    output: result.output
-  };
-}
-
-/**
- * Truncate output to a reasonable size for context injection
- */
-function truncateOutput(output, maxLines = 30) {
-  if (!output) return '';
   
-  const lines = output.split('\n');
-  if (lines.length <= maxLines) {
-    return output;
-  }
+  debug('TypeScript compiler not found');
+  return { success: true, output: '', skipped: true };
+}
 
-  const half = Math.floor(maxLines / 2);
-  const truncated = [
-    ...lines.slice(0, half),
-    `\n... (${lines.length - maxLines} lines truncated) ...\n`,
-    ...lines.slice(-half)
+/**
+ * Run ESLint
+ * @param {string} projectRoot - Project root directory
+ * @param {string} filePath - File that was modified
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {object} Result with success, output
+ */
+function runLint(projectRoot, filePath, timeout = 30000) {
+  // Check for ESLint config
+  const eslintConfigs = [
+    '.eslintrc',
+    '.eslintrc.js',
+    '.eslintrc.cjs',
+    '.eslintrc.json',
+    '.eslintrc.yml',
+    '.eslintrc.yaml',
+    'eslint.config.js',
+    'eslint.config.mjs',
+    'eslint.config.cjs'
   ];
   
-  return truncated.join('\n');
+  const hasEslintConfig = eslintConfigs.some(config => 
+    fs.existsSync(path.join(projectRoot, config))
+  );
+  
+  // Also check package.json for eslintConfig
+  let hasEslintInPackage = false;
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+    hasEslintInPackage = !!pkg.eslintConfig;
+  } catch {
+    // Ignore
+  }
+  
+  if (!hasEslintConfig && !hasEslintInPackage) {
+    debug('No ESLint config found, skipping lint');
+    return { success: true, output: '', skipped: true };
+  }
+  
+  // Check if project has a lint script
+  if (hasScript('lint', projectRoot)) {
+    debug('Running npm run lint');
+    // Only lint the specific file if possible
+    return runNpmCommand('run', `lint -- "${filePath}"`, { cwd: projectRoot, timeout });
+  }
+  
+  // Fall back to direct eslint
+  const eslintPath = path.join(projectRoot, 'node_modules', '.bin', platform.isWindows ? 'eslint.cmd' : 'eslint');
+  
+  if (fs.existsSync(eslintPath)) {
+    debug(`Running eslint on ${filePath}`);
+    const { execSync } = require('child_process');
+    
+    try {
+      const output = execSync(`"${eslintPath}" "${filePath}"`, {
+        encoding: 'utf8',
+        timeout,
+        cwd: projectRoot,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return { success: true, output: output || '' };
+    } catch (err) {
+      // ESLint exits with code 1 for lint errors
+      return {
+        success: err.status === 1,  // Lint errors are "expected" failures
+        output: err.stdout || err.stderr || err.message || '',
+        hasLintErrors: true
+      };
+    }
+  }
+  
+  debug('ESLint not found');
+  return { success: true, output: '', skipped: true };
 }
 
-function main() {
+/**
+ * Format verification results for context injection
+ * @param {string} checkType - Type of check (typecheck, lint)
+ * @param {object} result - Result from verification
+ * @returns {string} Formatted message
+ */
+function formatResult(checkType, result) {
+  if (result.skipped) {
+    return '';
+  }
+  
+  if (result.success && !result.output) {
+    return `✅ ${checkType}: passed\n`;
+  }
+  
+  if (!result.success || result.hasLintErrors) {
+    const icon = checkType === 'typecheck' ? '❌' : '⚠️';
+    const lines = result.output.trim().split('\n').slice(0, 10);  // Limit output
+    return `${icon} ${checkType} issues:\n\`\`\`\n${lines.join('\n')}\n\`\`\`\n`;
+  }
+  
+  return `✅ ${checkType}: passed\n`;
+}
+
+/**
+ * Main hook logic
+ */
+async function main() {
   try {
-    const input = readInput();
+    const input = await readInput();
     const toolName = input.tool_name || '';
     const toolInput = input.tool_input || {};
-    const toolResponse = input.tool_response || {};
     const cwd = input.cwd || process.cwd();
-
-    // Skip if tool failed
-    if (toolResponse.error) {
-      log('Tool failed, skipping verification');
+    
+    log(`AfterTool hook fired. Tool: ${toolName}`);
+    debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
+    
+    // Get the file that was modified
+    const filePath = toolInput.path || toolInput.file_path || toolInput.target_file || '';
+    
+    if (!filePath) {
+      log('No file path found in tool input');
       writeOutput({});
       return;
     }
-
-    // Get the file path that was modified
-    const filepath = toolInput.path || toolInput.file_path || toolInput.filepath || '';
-
-    // Skip non-code files
-    if (!shouldVerify(filepath)) {
-      log(`Skipping verification for non-code file: ${filepath}`);
+    
+    // Check if this file type should be verified
+    if (!shouldVerify(filePath)) {
+      log(`Skipping verification for non-code file: ${filePath}`);
       writeOutput({});
       return;
     }
-
+    
+    // Find project root
     const projectRoot = findProjectRoot(cwd);
+    
+    // Load configuration
     const config = loadConfig(projectRoot);
-
-    // Skip if verification is disabled
-    if (!config.autoVerification.enabled) {
+    
+    if (!isFeatureEnabled(config, 'autoVerification')) {
+      log('Auto-verification is disabled');
       writeOutput({});
       return;
     }
-
-    const timeout = config.autoVerification.timeout || 30000;
+    
+    const verificationConfig = getConfigValue(config, 'autoVerification', {});
+    const timeout = verificationConfig.timeout || 30000;
+    
     let additionalContext = '';
-    let hasIssues = false;
-    const issues = [];
-
-    // --- Run Typecheck ---
-    if (config.autoVerification.typecheck) {
-      const typecheckResult = runTypecheck(projectRoot, timeout);
-
-      if (typecheckResult.ran && !typecheckResult.success) {
-        hasIssues = true;
-        issues.push('TypeScript errors');
-        
-        const truncatedOutput = truncateOutput(typecheckResult.output, 25);
-        additionalContext += `\n## ⚠️ TypeScript Errors\n\n`;
-        additionalContext += `Command: 	estecheckResult.command}
-
-`;
-        additionalContext += `
-${truncatedOutput}
-
-`;
+    let hasErrors = false;
+    
+    // --- Run TypeCheck ---
+    if (verificationConfig.typecheck !== false) {
+      log(`Running typecheck for ${filePath}`);
+      const typecheckResult = runTypeCheck(projectRoot, filePath, timeout);
+      
+      const formattedResult = formatResult('TypeCheck', typecheckResult);
+      if (formattedResult) {
+        additionalContext += formattedResult;
+      }
+      
+      if (!typecheckResult.success && !typecheckResult.skipped) {
+        hasErrors = true;
       }
     }
-
+    
     // --- Run Lint ---
-    if (config.autoVerification.lint) {
-      const lintResult = runLint(projectRoot, timeout);
-
-      if (lintResult.ran && !lintResult.success) {
-        hasIssues = true;
-        issues.push('Lint errors');
-        
-        const truncatedOutput = truncateOutput(lintResult.output, 25);
-        additionalContext += `\n## ⚠️ Lint Errors\n\n`;
-        additionalContext += `Command: 	esteResult.command}
-
-`;
-        additionalContext += `
-${truncatedOutput}
-
-`;
+    if (verificationConfig.lint !== false) {
+      log(`Running lint for ${filePath}`);
+      const lintResult = runLint(projectRoot, filePath, timeout);
+      
+      const formattedResult = formatResult('Lint', lintResult);
+      if (formattedResult) {
+        additionalContext += formattedResult;
+      }
+      
+      if (lintResult.hasLintErrors) {
+        // Lint errors are warnings, not blockers
+        additionalContext += '\n_Consider fixing lint warnings before proceeding._\n';
       }
     }
-
+    
     // --- Build Output ---
     const output = {};
-
-    if (hasIssues) {
-      additionalContext += `\n---\n**Please fix these issues before proceeding to the next task.**\n`;
-      
+    
+    if (additionalContext.trim()) {
       output.hookSpecificOutput = {
-        additionalContext: additionalContext.trim()
+        additionalContext: `## 🔍 Auto-Verification Results\n${additionalContext.trim()}`
       };
-      output.systemMessage = `⚠️ Verification found issues: ${issues.join(', ')}`;
-      
-      log(`Verification found issues: ${issues.join(', ')}`);
-    } else {
-      output.systemMessage = '✓ Verification passed';
-      log('Verification passed');
     }
-
+    
+    if (hasErrors) {
+      output.systemMessage = '⚠️ Verification found type errors - review before continuing';
+    }
+    
     writeOutput(output);
-
   } catch (err) {
     log(`AfterTool hook error: ${err.message}`);
-    // On error, don't block - just skip verification
+    // Don't fail the hook
     writeOutput({});
   }
 }

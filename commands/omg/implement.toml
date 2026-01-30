@@ -1,10 +1,8 @@
 # /omg:implement - Execute the current track's plan
 
-[command]
 description = "Execute the current track's plan, working through tasks phase by phase."
 
-[command.prompt]
-text = """
+prompt = """
 You are executing a Conductor track's implementation plan.
 
 ## Current State

@@ -6,230 +6,228 @@
  * Fires: After every agent response
  *
  * Purpose:
- * - Detect when agent completes a Conductor phase
- * - Enforce verification gates (advisory or strict mode)
- * - Prompt user confirmation before proceeding to next phase
+ * - Parse active track's plan.md
+ * - Detect if phase boundary was crossed
+ * - Force verification pause at phase gates
+ * - Reject response if agent skips verification
  *
  * Input: { prompt, prompt_response, stop_hook_active, session_id, cwd, ... }
- * Output: { decision?: "deny", reason?, systemMessage? }
- *
- * Modes:
- * - Advisory (default): Shows message but allows continuation
- * - Strict: Blocks progression until user explicitly confirms
+ * Output: { decision?: "deny", reason? }
+ * 
+ * Cross-platform compatible (Windows/macOS/Linux)
  */
 
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 const {
   readInput,
   writeOutput,
   log,
+  debug,
   findProjectRoot,
   loadConductorState,
-  calculateProgress
+  calculateProgress,
+  platform
 } = require('./lib/utils');
-const { loadConfig } = require('./lib/config');
+const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
 /**
- * Patterns that indicate phase completion
+ * Parse phases from plan content
+ * @param {string} planContent - Plan markdown content
+ * @returns {object[]} Array of phase objects with name, tasks, completed
  */
-const PHASE_COMPLETION_PATTERNS = [
-  /phase\s+\d+\s+(is\s+)?complete/i,
-  /completed?\s+phase\s+\d+/i,
-  /finished?\s+phase\s+\d+/i,
-  /moving\s+to\s+phase\s+\d+/i,
-  /proceed(ing)?\s+to\s+(the\s+)?next\s+phase/i,
-  /all\s+tasks?\s+(in\s+)?(this\s+)?phase\s+(are\s+)?(complete|done|finished)/i,
-  /phase\s+\d+\s+tasks?\s+(are\s+)?(all\s+)?(complete|done|finished)/i,
-  /verification\s+gate/i,
-  /ready\s+for\s+(phase\s+)?\d+/i,
-  /starting\s+phase\s+\d+/i
-];
-
-/**
- * Patterns that indicate the agent is asking for verification
- * (don't trigger gate if agent is already asking)
- */
-const ALREADY_ASKING_PATTERNS = [
-  /ready\s+to\s+proceed\??/i,
-  /shall\s+(i|we)\s+(continue|proceed)/i,
-  /would\s+you\s+like\s+(me\s+)?to\s+(continue|proceed)/i,
-  /confirm(ation)?\s+(before|to)\s+(proceed|continue)/i,
-  /waiting\s+for\s+(your\s+)?(confirmation|approval)/i,
-  /please\s+(confirm|approve)/i
-];
-
-/**
- * Check if response indicates phase completion
- */
-function detectsPhaseCompletion(response) {
-  return PHASE_COMPLETION_PATTERNS.some(pattern => pattern.test(response));
-}
-
-/**
- * Check if agent is already asking for confirmation
- */
-function isAlreadyAskingForConfirmation(response) {
-  return ALREADY_ASKING_PATTERNS.some(pattern => pattern.test(response));
-}
-
-/**
- * Find phase gate markers in plan.md
- */
-function findPhaseGate(planContent) {
-  if (!planContent) return null;
-
-  // Look for incomplete phase gate tasks
-  const patterns = [
-    /- \[ \] Task: (?:Phase Gate|Conductor - User Manual Verification)[- ]['"]([^'"]+)['"]/i,
-    /- \[ \] (?:Phase Gate|Verification):\s*['"]?([^'"\n]+)['"]?/i,
-    /- \[ \] Task:.*Verification.*['"]([^'"]+)['"]/i
-  ];
-
-  for (const pattern of patterns) {
-    const match = planContent.match(pattern);
-    if (match) {
-      return match[1].trim();
-    }
-  }
-
-  return null;
-}
-
-/**
- * Detect which phase was just completed based on response
- */
-function detectCompletedPhase(response) {
-  const phaseMatch = response.match(/phase\s+(\d+)/i);
-  return phaseMatch ? parseInt(phaseMatch[1], 10) : null;
-}
-
-/**
- * Get summary of completed work for the phase
- */
-function getPhaseCompletionSummary(conductor, phaseNumber) {
-  if (!conductor || !conductor.plan) return '';
-
-  const lines = conductor.plan.split('\n');
-  let inTargetPhase = false;
-  let completedTasks = [];
-  let currentPhaseNum = 0;
-
+function parsePhases(planContent) {
+  if (!planContent) return [];
+  
+  const phases = [];
+  const lines = planContent.split('\n');
+  
+  let currentPhase = null;
+  
   for (const line of lines) {
-    const phaseMatch = line.match(/^##\s*Phase\s*(\d+)/i);
+    // Match phase headers: ## Phase 1: Data Layer or ### Data Layer
+    const phaseMatch = line.match(/^#{2,3}\s*(?:Phase\s*\d+[:\s]*)?(.+)/i);
+    
     if (phaseMatch) {
-      currentPhaseNum = parseInt(phaseMatch[1], 10);
-      inTargetPhase = phaseNumber ? currentPhaseNum === phaseNumber : true;
+      // Save previous phase
+      if (currentPhase) {
+        phases.push(currentPhase);
+      }
+      
+      currentPhase = {
+        name: phaseMatch[1].trim(),
+        tasks: [],
+        completed: 0,
+        total: 0
+      };
+      continue;
     }
-
-    if (inTargetPhase && line.match(/^- \[x\]/i)) {
-      const taskMatch = line.match(/^- \[x\]\s*(.+)/i);
+    
+    // Match tasks within phase
+    if (currentPhase) {
+      const taskMatch = line.match(/^[\s]*-\s*\[([ xX])\]\s*(.+)$/);
       if (taskMatch) {
-        completedTasks.push(taskMatch[1].trim());
+        const isComplete = taskMatch[1].toLowerCase() === 'x';
+        currentPhase.tasks.push({
+          text: taskMatch[2].trim(),
+          completed: isComplete
+        });
+        currentPhase.total++;
+        if (isComplete) {
+          currentPhase.completed++;
+        }
       }
     }
   }
-
-  return completedTasks.slice(-5).map(t => `  ✓ ${t}`).join('\n');
+  
+  // Don't forget the last phase
+  if (currentPhase) {
+    phases.push(currentPhase);
+  }
+  
+  return phases;
 }
 
-function main() {
+/**
+ * Find the current phase (first incomplete phase)
+ * @param {object[]} phases - Array of phase objects
+ * @returns {object|null} Current phase or null
+ */
+function findCurrentPhase(phases) {
+  for (const phase of phases) {
+    if (phase.completed < phase.total) {
+      return phase;
+    }
+  }
+  return phases[phases.length - 1] || null;
+}
+
+/**
+ * Check if a verification task exists for a phase
+ * @param {object} phase - Phase object
+ * @returns {boolean} True if phase has verification task
+ */
+function hasVerificationTask(phase) {
+  if (!phase || !phase.tasks) return false;
+  
+  return phase.tasks.some(task => 
+    task.text.toLowerCase().includes('verification') ||
+    task.text.toLowerCase().includes('conductor') ||
+    task.text.toLowerCase().includes('manual verification') ||
+    task.text.toLowerCase().includes('checkpoint')
+  );
+}
+
+/**
+ * Check if phase verification is complete
+ * @param {object} phase - Phase object
+ * @returns {boolean} True if verification task is marked complete
+ */
+function isVerificationComplete(phase) {
+  if (!phase || !phase.tasks) return true;
+  
+  const verificationTask = phase.tasks.find(task => 
+    task.text.toLowerCase().includes('verification') ||
+    task.text.toLowerCase().includes('conductor') ||
+    task.text.toLowerCase().includes('manual verification') ||
+    task.text.toLowerCase().includes('checkpoint')
+  );
+  
+  return verificationTask ? verificationTask.completed : true;
+}
+
+/**
+ * Main hook logic
+ */
+async function main() {
   try {
-    const input = readInput();
+    const input = await readInput();
     const promptResponse = input.prompt_response || '';
-    const stopHookActive = input.stop_hook_active || false;
     const cwd = input.cwd || process.cwd();
-
-    // Don't re-trigger if already in a retry loop
-    if (stopHookActive) {
-      writeOutput({});
-      return;
-    }
-
+    
+    log('PhaseGate hook fired');
+    debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
+    
+    // Find project root
     const projectRoot = findProjectRoot(cwd);
+    
+    // Load configuration
     const config = loadConfig(projectRoot);
-
-    // Skip if phase gates are disabled
-    if (!config.phaseGates || !config.phaseGates.enabled) {
+    
+    // Check if phase gates are enabled
+    if (!isFeatureEnabled(config, 'phaseGates')) {
+      log('Phase gates are disabled');
       writeOutput({});
       return;
     }
-
+    
+    const phaseGateConfig = getConfigValue(config, 'phaseGates', {});
+    const strictMode = phaseGateConfig.strict || false;
+    
     // Load Conductor state
     const conductor = loadConductorState(projectRoot);
-
-    // Skip if no active Conductor track
-    if (!conductor || !conductor.hasActiveTracks) {
+    
+    if (!conductor || !conductor.active || !conductor.plan) {
+      log('No active Conductor track');
       writeOutput({});
       return;
     }
-
-    // Check if response indicates phase completion
-    if (!detectsPhaseCompletion(promptResponse)) {
+    
+    // Parse phases from plan
+    const phases = parsePhases(conductor.plan);
+    
+    if (phases.length === 0) {
+      log('No phases found in plan');
       writeOutput({});
       return;
     }
-
-    // Skip if agent is already asking for confirmation
-    if (isAlreadyAskingForConfirmation(promptResponse)) {
-      log('Agent already asking for confirmation, skipping phase gate');
+    
+    // Find current phase
+    const currentPhase = findCurrentPhase(phases);
+    
+    if (!currentPhase) {
+      log('All phases complete');
       writeOutput({});
       return;
     }
-
-    // Find the phase gate marker in the plan
-    const phaseGateName = findPhaseGate(conductor.plan);
-    const completedPhase = detectCompletedPhase(promptResponse);
-    const phaseName = phaseGateName || (completedPhase ? `Phase ${completedPhase}` : 'Current Phase');
-
-    // Get summary of completed work
-    const completedWork = getPhaseCompletionSummary(conductor, completedPhase);
-    const progress = calculateProgress(conductor.plan);
-
-    log(`Phase gate triggered: ${phaseName} (strict: ${config.phaseGates.strict})`);
-
-    if (config.phaseGates.strict) {
-      // Strict mode: Force a retry with verification request
-      const reason = `
-🔍 **Phase Gate: ${phaseName}**
-
-Before proceeding to the next phase, please:
-
-1. **Summarize** what was accomplished:
-${completedWork || '   (List the completed tasks)'}
-
-2. **Verify** all requirements are met:
-   - All tasks marked [x] complete
-   - Code compiles without errors
-   - Tests pass (if applicable)
-
-3. **Update** the plan.md file:
-   - Mark completed tasks with [x]
-   - Update metadata.json if needed
-
-4. **Wait for user confirmation** before starting the next phase.
-
-**Progress:** ${progress.completed}/${progress.total} tasks (${progress.percentage}%)
-
-Do not proceed until the user explicitly confirms.
-`.trim();
-
-      writeOutput({
-        decision: 'deny',
-        reason: reason
-      });
-    } else {
-      // Advisory mode: Show message but continue
-      const message = `📋 Phase Gate: ${phaseName} complete (${progress.percentage}%). Consider verifying before proceeding.`;
+    
+    log(`Current phase: ${currentPhase.name} (${currentPhase.completed}/${currentPhase.total})`);
+    
+    // Check if we're at a phase boundary
+    const allTasksComplete = currentPhase.tasks.every(t => 
+      t.completed || 
+      t.text.toLowerCase().includes('verification') ||
+      t.text.toLowerCase().includes('conductor')
+    );
+    
+    if (allTasksComplete && !isVerificationComplete(currentPhase)) {
+      // Phase work is done but verification isn't marked
+      const message = strictMode
+        ? `🚫 Phase Gate: "${currentPhase.name}" tasks complete. Please verify and mark the verification task as complete before proceeding.`
+        : `⚠️ Phase Gate (Advisory): "${currentPhase.name}" tasks appear complete. Consider verifying before proceeding to the next phase.`;
       
-      writeOutput({
-        systemMessage: message
-      });
+      if (strictMode) {
+        log(`BLOCKING: Phase "${currentPhase.name}" needs verification`);
+        // In strict mode, block the response
+        writeOutput({
+          decision: 'deny',
+          reason: message
+        });
+      } else {
+        // In advisory mode, just add a system message
+        log(`ADVISORY: Phase "${currentPhase.name}" needs verification`);
+        writeOutput({
+          systemMessage: message
+        });
+      }
+      return;
     }
-
+    
+    // No gate triggered
+    writeOutput({});
   } catch (err) {
-    log(`Phase gate hook error: ${err.message}`);
-    // On error, don't block - just continue
+    log(`PhaseGate hook error: ${err.message}`);
+    // Don't fail the hook
     writeOutput({});
   }
 }

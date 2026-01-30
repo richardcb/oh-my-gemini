@@ -1,10 +1,8 @@
 # /omg:autopilot - Autonomous task execution with smart agent routing
 
-[command]
 description = "Execute a task autonomously with smart agent routing. Usage: /omg:autopilot 'build a user authentication system'"
 
-[command.prompt]
-text = """
+prompt = """
 You are the oh-my-gemini Orchestrator operating in Autopilot mode.
 
 ## Current Project Context
