@@ -23,26 +23,56 @@ const DEBUG = process.env.OMG_DEBUG === '1' || process.env.OMG_DEBUG === 'true';
  * @returns {Promise<object>} Parsed input object
  */
 function readInput() {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     let data = '';
+    let ended = false;
+    let hasData = false;
     
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', chunk => data += chunk);
-    process.stdin.on('end', () => {
-      try {
-        resolve(JSON.parse(data || '{}'));
-      } catch (err) {
-        reject(new Error(`Failed to parse hook input: ${err.message}`));
-      }
-    });
-    process.stdin.on('error', reject);
-    
-    // Timeout for stdin read (10 seconds)
-    setTimeout(() => {
-      if (!data) {
+    // Shorter timeout - fail fast (reduced from 10s to 1s)
+    const timeout = setTimeout(() => {
+      if (!ended && !hasData) {
+        debug('readInput timeout - no stdin data received');
         resolve({});
       }
-    }, 10000);
+    }, 1000);
+    
+    // Check if stdin is readable (handles Windows edge cases)
+    if (process.stdin.isTTY === false && !process.stdin.readable) {
+      clearTimeout(timeout);
+      debug('stdin not readable - returning empty input');
+      resolve({});
+      return;
+    }
+    
+    process.stdin.setEncoding('utf8');
+    
+    process.stdin.on('data', chunk => {
+      hasData = true;
+      data += chunk;
+    });
+    
+    process.stdin.on('end', () => {
+      if (ended) return;  // Prevent double-resolution
+      ended = true;
+      clearTimeout(timeout);
+      
+      try {
+        const parsed = JSON.parse(data || '{}');
+        debug(`Parsed stdin input: ${Object.keys(parsed).length} keys`);
+        resolve(parsed);
+      } catch (err) {
+        debug(`Failed to parse stdin JSON: ${err.message}`);
+        resolve({});  // Don't fail - return empty object
+      }
+    });
+    
+    process.stdin.on('error', (err) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timeout);
+      debug(`stdin error: ${err.message}`);
+      resolve({});
+    });
   });
 }
 
