@@ -35,6 +35,7 @@ The hooks automatically detect the platform and adjust command execution accordi
 
 ```
 hooks/
+├── hooks.json           # Hook definitions for Gemini CLI (REQUIRED)
 ├── lib/
 │   ├── platform.js      # Cross-platform utilities (NEW in v2.0.1)
 │   ├── utils.js         # Shared utilities (I/O, git, etc.)

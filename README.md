@@ -181,6 +181,7 @@ oh-my-gemini/
 ├── .gemini/agents/          # Agent definitions (SubAgent format)
 ├── skills/                  # Skill definitions
 ├── hooks/                   # Hook scripts (v2.0)
+│   ├── hooks.json           # Hook definitions for Gemini CLI
 │   ├── lib/                 # Shared utilities
 │   ├── session-start.js
 │   ├── before-agent.js

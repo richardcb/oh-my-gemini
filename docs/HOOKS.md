@@ -531,7 +531,7 @@ In `.gemini/omg-config.json`:
 
 ### Disabling Specific Hooks
 
-Currently, hooks can only be disabled by modifying `gemini-extension.json` or removing them from the hooks array. Per-hook disable configuration is planned for a future release.
+Currently, hooks can only be disabled by modifying `hooks/hooks.json` or removing them from the hooks array. Per-hook disable configuration is planned for a future release.
 
 ---
 

@@ -48,6 +48,8 @@ oh-my-gemini/
 ├── .gemini/agents/          # Agent definitions (SubAgent .md format)
 ├── skills/                  # Skill definitions (SKILL.md)
 ├── hooks/                   # Pre/post tool hooks
+│   ├── hooks.json           # Hook definitions for Gemini CLI (REQUIRED)
+│   └── *.js                 # Hook script implementations
 ├── conductor/templates/     # Conductor workflow templates
 ├── mcp/                     # MCP server configurations
 ├── templates/               # Project templates (GEMINI.md)
