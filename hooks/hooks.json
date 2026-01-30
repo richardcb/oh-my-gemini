@@ -8,7 +8,7 @@
                         "name": "omg-session-start",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/session-start.js",
-                        "timeout": 5000,
+                        "timeout": 15000,
                         "description": "Load Conductor state and project context on startup"
                     }
                 ]
@@ -64,7 +64,7 @@
                         "name": "omg-tool-filter",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/tool-filter.js",
-                        "timeout": 5000,
+                        "timeout": 10000,
                         "description": "Filter tools based on detected agent mode (researcher/architect/executor)"
                     }
                 ]
@@ -85,7 +85,7 @@
                         "name": "omg-ralph-retry",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/ralph-retry.js",
-                        "timeout": 5000,
+                        "timeout": 10000,
                         "description": "Persistence mode (Ralph) - automatic retry on failure"
                     }
                 ]
