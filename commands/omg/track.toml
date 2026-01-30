@@ -181,3 +181,6 @@ Next steps:
 - Plans should have clear verification gates between phases
 - Always update tracks.md when creating a new track
 """
+
+[tool_config]
+mode = "AUTO"

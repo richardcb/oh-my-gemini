@@ -205,3 +205,5 @@ Run `/omg:status` anytime to see your current state.
 - Hooks are registered via the extension manifest - no manual setup needed
 - Users can customize hooks via .gemini/omg-config.json
 """
+[tool_config]
+mode = "AUTO"

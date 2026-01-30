@@ -102,3 +102,6 @@ Suggest relevant next steps based on current state:
 
 Keep the report concise - this is a quick overview, not a deep analysis.
 """
+
+[tool_config]
+mode = "AUTO"

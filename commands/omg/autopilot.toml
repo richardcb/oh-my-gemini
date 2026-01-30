@@ -124,3 +124,5 @@ If user includes these, adjust behavior:
 - If Conductor is active, respect the current track
 - Be transparent about what you're doing
 """
+[tool_config]
+mode = "AUTO"

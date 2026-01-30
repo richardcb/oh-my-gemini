@@ -104,3 +104,6 @@ Tip: The conductor/ files are meant to be edited! Customize them.
 - Customize templates with actual user input and detected values
 - Actually create the files, don't just describe them
 """
+
+[tool_config]
+mode = "AUTO"

@@ -142,3 +142,5 @@ When all tasks are done:
 - Match existing codebase patterns
 - Trust the hooks for safety and verification
 """
+[tool_config]
+mode = "AUTO"
