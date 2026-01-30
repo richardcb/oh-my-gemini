@@ -1,0 +1,93 @@
+{
+    "SessionStart": [
+        {
+            "matcher": "startup",
+            "hooks": [
+                {
+                    "name": "omg-session-start",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/session-start.js",
+                    "timeout": 5000,
+                    "description": "Load Conductor state and project context on startup"
+                }
+            ]
+        }
+    ],
+    "BeforeAgent": [
+        {
+            "matcher": "*",
+            "hooks": [
+                {
+                    "name": "omg-context-injection",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/before-agent.js",
+                    "timeout": 10000,
+                    "description": "Dynamic context injection based on task type"
+                }
+            ]
+        }
+    ],
+    "BeforeTool": [
+        {
+            "matcher": "write_file|replace|edit_file|create_file|run_shell_command|shell",
+            "hooks": [
+                {
+                    "name": "omg-security-gate",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/before-tool.js",
+                    "timeout": 15000,
+                    "description": "Security gates and git checkpoints before file/shell operations"
+                }
+            ]
+        }
+    ],
+    "AfterTool": [
+        {
+            "matcher": "write_file|replace|edit_file|create_file",
+            "hooks": [
+                {
+                    "name": "omg-auto-verify",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/after-tool.js",
+                    "timeout": 60000,
+                    "description": "Auto-verification (typecheck, lint) after code changes"
+                }
+            ]
+        }
+    ],
+    "BeforeToolSelection": [
+        {
+            "matcher": "*",
+            "hooks": [
+                {
+                    "name": "omg-tool-filter",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/tool-filter.js",
+                    "timeout": 5000,
+                    "description": "Filter tools based on detected agent mode (researcher/architect/executor)"
+                }
+            ]
+        }
+    ],
+    "AfterAgent": [
+        {
+            "matcher": "*",
+            "hooks": [
+                {
+                    "name": "omg-phase-gate",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/phase-gate.js",
+                    "timeout": 10000,
+                    "description": "Conductor phase verification gates"
+                },
+                {
+                    "name": "omg-ralph-retry",
+                    "type": "command",
+                    "command": "node ${extensionPath}/hooks/ralph-retry.js",
+                    "timeout": 5000,
+                    "description": "Persistence mode (Ralph) - automatic retry on failure"
+                }
+            ]
+        }
+    ]
+}
