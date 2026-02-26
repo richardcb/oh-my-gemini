@@ -70,7 +70,7 @@ Agent definitions live in `.gemini/agents/*.md` using Gemini CLI's SubAgent form
 **YAML frontmatter fields:**
 - `name` - Agent identifier
 - `description` - When to use this agent
-- `model` - Model to use (e.g., `gemini-2.5-pro`)
+- `model` - Model to use (e.g., `gemini-3.1-pro-preview`)
 - `tools` - List of allowed tools
 - Optional: `temperature`, `max_turns`, `timeout_mins`
 

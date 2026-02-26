@@ -182,7 +182,7 @@ deny_message = "Protected: Cannot write to Windows system directories."
 
 # Allow read operations automatically (they're safe)
 [[rule]]
-toolName = ["read_file", "list_dir", "glob", "search_file_content", "read_many_files"]
+toolName = ["read_file", "list_directory", "glob", "search_file_content", "read_many_files"]
 decision = "allow"
 priority = 100
 
@@ -206,11 +206,11 @@ priority = 200
 # prompt content, so these cannot be expressed as static TOML rules.
 #
 # Researcher mode (activated by @researcher keyword):
-#   Allowed: google_web_search, web_fetch, read_file, list_dir, glob
+#   Allowed: google_web_search, web_fetch, read_file, list_directory, glob
 #   Denied:  write_file, replace, edit_file, create_file, run_shell_command
 #
 # Architect mode (activated by @architect keyword):
-#   Allowed: read_file, list_dir, glob, search_file_content
+#   Allowed: read_file, list_directory, glob, search_file_content
 #   Denied:  write_file, replace, edit_file, create_file, run_shell_command
 #
 # Executor mode (default / activated by @executor keyword):

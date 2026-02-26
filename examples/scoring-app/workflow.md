@@ -1,6 +1,6 @@
 # Development Workflow: Docs-First & Interactive
 
-*This is an example workflow from a real production project (I2N Scoring Platform).*
+*This is an example workflow from a real production project.*
 
 We follow a strict, linear "Docs-First" methodology. **Do not write code** until a PRD and Technical Plan have been generated and approved.
 

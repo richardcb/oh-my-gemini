@@ -65,10 +65,10 @@ function runTypeCheck(projectRoot, filePath, timeout = 30000) {
   
   if (fs.existsSync(tscPath)) {
     debug('Running tsc --noEmit');
-    const { execSync } = require('child_process');
-    
+    const { execFileSync } = require('child_process');
+
     try {
-      const output = execSync(`"${tscPath}" --noEmit`, {
+      const output = execFileSync(tscPath, ['--noEmit'], {
         encoding: 'utf8',
         timeout,
         cwd: projectRoot,
@@ -129,8 +129,24 @@ function runLint(projectRoot, filePath, timeout = 30000) {
   // Check if project has a lint script
   if (hasScript('lint', projectRoot)) {
     debug('Running npm run lint');
-    // Only lint the specific file if possible
-    return runNpmCommand('run', `lint -- "${filePath}"`, { cwd: projectRoot, timeout });
+    // Use execFileSync with argument array to avoid shell injection from filePath
+    const { execFileSync } = require('child_process');
+    const npmCmd = platform.isWindows ? 'npm.cmd' : 'npm';
+    try {
+      const output = execFileSync(npmCmd, ['run', 'lint', '--', filePath], {
+        encoding: 'utf8',
+        timeout,
+        cwd: projectRoot,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return { success: true, output: output || '' };
+    } catch (err) {
+      return {
+        success: err.status === 1,
+        output: err.stdout || err.stderr || err.message || '',
+        hasLintErrors: true
+      };
+    }
   }
   
   // Fall back to direct eslint
@@ -138,10 +154,10 @@ function runLint(projectRoot, filePath, timeout = 30000) {
   
   if (fs.existsSync(eslintPath)) {
     debug(`Running eslint on ${filePath}`);
-    const { execSync } = require('child_process');
-    
+    const { execFileSync } = require('child_process');
+
     try {
-      const output = execSync(`"${eslintPath}" "${filePath}"`, {
+      const output = execFileSync(eslintPath, [filePath], {
         encoding: 'utf8',
         timeout,
         cwd: projectRoot,

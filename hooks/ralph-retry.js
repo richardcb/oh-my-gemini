@@ -135,6 +135,35 @@ function resetAttempts(sessionId, projectRoot) {
 }
 
 /**
+ * Negation words that, when found before a match, indicate the match is not a true positive.
+ */
+const NEGATION_WORDS = [
+  'not', 'no', "didn't", "doesn't", "haven't", "hasn't", "can't",
+  'cannot', 'unable', 'failed to'
+];
+
+/**
+ * Positive context phrases that, when found before a failure word, indicate it is not a true failure.
+ */
+const POSITIVE_CONTEXT_PHRASES = [
+  'fixed the', 'resolved the', 'no more', 'eliminated the'
+];
+
+/**
+ * Check whether a match at the given index in text is preceded (within ~30 chars) by any of the
+ * provided context phrases/words.
+ * @param {string} text - Lowercased full response text
+ * @param {number} matchIndex - Index where the keyword match starts
+ * @param {string[]} contextPhrases - Phrases to look for before the match
+ * @returns {boolean} True if a context phrase is found within 30 chars before the match
+ */
+function isPrecededBy(text, matchIndex, contextPhrases) {
+  const windowStart = Math.max(0, matchIndex - 30);
+  const window = text.slice(windowStart, matchIndex);
+  return contextPhrases.some(phrase => window.includes(phrase));
+}
+
+/**
  * Check if response indicates failure/giving up
  * @param {string} response - Agent response text
  * @param {string[]} patterns - Failure patterns to match
@@ -142,18 +171,13 @@ function resetAttempts(sessionId, projectRoot) {
  */
 function detectsFailure(response, patterns) {
   const responseLower = response.toLowerCase();
-  
-  for (const pattern of patterns) {
-    if (responseLower.includes(pattern.toLowerCase())) {
-      return true;
-    }
-  }
-  
-  // Additional failure indicators
-  const additionalPatterns = [
+  let matchCount = 0;
+
+  const allPatterns = [
+    ...patterns.map(p => p.toLowerCase()),
     'apologize',
     "can't help",
-    "cannot assist",
+    'cannot assist',
     'not able to',
     'beyond my capabilities',
     'outside my scope',
@@ -163,8 +187,80 @@ function detectsFailure(response, patterns) {
     'impossible to',
     'no way to'
   ];
-  
-  return additionalPatterns.some(p => responseLower.includes(p));
+
+  for (const pattern of allPatterns) {
+    let searchFrom = 0;
+    while (true) {
+      const idx = responseLower.indexOf(pattern, searchFrom);
+      if (idx === -1) break;
+      // Skip if preceded by positive context (e.g. "fixed the error")
+      if (!isPrecededBy(responseLower, idx, POSITIVE_CONTEXT_PHRASES)) {
+        matchCount++;
+      }
+      searchFrom = idx + 1;
+    }
+  }
+
+  return matchCount > 0;
+}
+
+/**
+ * Count distinct pattern matches in text, skipping negated occurrences.
+ * @param {string} text - Lowercased response text
+ * @param {string[]} patterns - Patterns to search for
+ * @returns {number} Number of non-negated matches found
+ */
+function countSuccessMatches(text, patterns) {
+  let count = 0;
+  for (const pattern of patterns) {
+    let searchFrom = 0;
+    while (true) {
+      const idx = text.indexOf(pattern, searchFrom);
+      if (idx === -1) break;
+      // Skip if preceded by a negation word
+      if (!isPrecededBy(text, idx, NEGATION_WORDS)) {
+        count++;
+      }
+      searchFrom = idx + 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * Count distinct failure pattern matches in text, skipping positively-contextualised occurrences.
+ * @param {string} text - Lowercased response text
+ * @param {string[]} patterns - Failure patterns from config
+ * @returns {number} Number of genuine failure matches
+ */
+function countFailureMatches(text, patterns) {
+  let count = 0;
+  const allPatterns = [
+    ...patterns.map(p => p.toLowerCase()),
+    'apologize',
+    "can't help",
+    'cannot assist',
+    'not able to',
+    'beyond my capabilities',
+    'outside my scope',
+    "don't have access",
+    "doesn't work",
+    "won't work",
+    'impossible to',
+    'no way to'
+  ];
+  for (const pattern of allPatterns) {
+    let searchFrom = 0;
+    while (true) {
+      const idx = text.indexOf(pattern, searchFrom);
+      if (idx === -1) break;
+      if (!isPrecededBy(text, idx, POSITIVE_CONTEXT_PHRASES)) {
+        count++;
+      }
+      searchFrom = idx + 1;
+    }
+  }
+  return count;
 }
 
 /**
@@ -174,22 +270,39 @@ function detectsFailure(response, patterns) {
  */
 function detectsSuccess(response) {
   const responseLower = response.toLowerCase();
-  
+
   const successIndicators = [
     'successfully',
-    'completed',
-    'done',
+    'all done',
+    'task done',
+    'is done',
+    'i have completed',
+    'i have finished',
+    'i have successfully',
+    'i have fixed',
+    'i have implemented',
+    'i have resolved',
+    'here is the updated',
+    'here is the fixed',
+    'here is the implementation',
+    'here is the solution',
+    "here's the updated",
+    "here's the fixed",
+    "here's the implementation",
+    "here's the solution",
+    'successfully completed',
+    'task completed',
+    'completed the',
+    'completed all',
     'finished',
     'created',
     'implemented',
-    'fixed',
+    'fixed the',
     'resolved',
-    'here is the',
-    "here's the",
-    'i have'
+    'all tests pass'
   ];
-  
-  return successIndicators.some(p => responseLower.includes(p));
+
+  return countSuccessMatches(responseLower, successIndicators) > 0;
 }
 
 /**
@@ -323,16 +436,54 @@ async function main() {
       'failed to'
     ];
     
-    // Check if response indicates success
-    if (detectsSuccess(promptResponse)) {
-      log('Response indicates success, resetting attempts');
+    // Check if response indicates success or failure, with tiebreaker
+    const responseLower = promptResponse.toLowerCase();
+    const successIndicators = [
+      'successfully',
+      'all done',
+      'task done',
+      'is done',
+      'i have completed',
+      'i have finished',
+      'i have successfully',
+      'i have fixed',
+      'i have implemented',
+      'i have resolved',
+      'here is the updated',
+      'here is the fixed',
+      'here is the implementation',
+      'here is the solution',
+      "here's the updated",
+      "here's the fixed",
+      "here's the implementation",
+      "here's the solution",
+      'successfully completed',
+      'task completed',
+      'completed the',
+      'completed all',
+      'finished',
+      'created',
+      'implemented',
+      'fixed the',
+      'resolved',
+      'all tests pass'
+    ];
+    const successMatches = countSuccessMatches(responseLower, successIndicators);
+    const failureMatches = countFailureMatches(responseLower, triggerPatterns);
+
+    // If both detected, only call it success if success strictly outnumbers failure
+    const hasSuccess = successMatches > 0 && successMatches > failureMatches;
+    const hasFailure = failureMatches > 0 && failureMatches >= successMatches;
+
+    if (hasSuccess) {
+      log(`Response indicates success (${successMatches} success vs ${failureMatches} failure matches), resetting attempts`);
       resetAttempts(sessionId, projectRoot);
       writeOutput({});
       return;
     }
 
     // Check if response indicates failure
-    if (!detectsFailure(promptResponse, triggerPatterns)) {
+    if (!hasFailure) {
       log('Response does not indicate failure');
       writeOutput({});
       return;

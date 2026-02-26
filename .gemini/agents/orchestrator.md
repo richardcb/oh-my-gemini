@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Task coordination agent. Analyzes requests, plans work, and uses skills to execute structured workflows. The primary agent mode for complex, multi-step tasks.
-model: gemini-3-pro-preview
+model: gemini-3.1-pro-preview
 tools:
   - read_file
   - list_directory

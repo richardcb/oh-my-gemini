@@ -30,7 +30,7 @@ To override these policies in your project, create `.gemini/policies/my-rules.to
 # Allow a specific command blocked by oh-my-gemini
 [[rule]]
 toolName = "run_shell_command"
-commandPrefix = "my-safe-command"
+commandRegex = "^my-safe-command"
 decision = "allow"
 priority = 950  # Higher than oh-my-gemini's block
 ```

@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const platform = require('./platform');
 
 // Debug mode flag - set via OMG_DEBUG=1 environment variable
@@ -28,14 +28,14 @@ function readInput() {
     let ended = false;
     let hasData = false;
     
-    // Shorter timeout - fail fast (reduced from 10s to 1s)
+    // Timeout - fail fast if no data arrives (increased from 1s to 3s for reliability)
     const timeout = setTimeout(() => {
       if (!ended && !hasData) {
         debug('readInput timeout - no stdin data received');
         resolve({});
       }
-    }, 1000);
-    
+    }, 3000);
+
     // Check if stdin is readable (handles Windows edge cases)
     if (process.stdin.isTTY === false && !process.stdin.readable) {
       clearTimeout(timeout);
@@ -43,11 +43,12 @@ function readInput() {
       resolve({});
       return;
     }
-    
+
     process.stdin.setEncoding('utf8');
-    
+
     process.stdin.on('data', chunk => {
       hasData = true;
+      clearTimeout(timeout);  // Cancel timeout once data starts flowing
       data += chunk;
     });
     
@@ -428,33 +429,22 @@ function runCommand(cmd, options = {}) {
  */
 function runGitCommand(args, options = {}) {
   const { timeout = 30000, cwd = process.cwd() } = options;
-  
-  // Git commands work the same on Windows and Unix
-  const cmd = `git ${args}`;
-  
-  debug(`Running git command: ${cmd}`);
-  
+  const argsArray = Array.isArray(args) ? args : args.split(/\s+/);
+
+  debug(`Running git command: git ${argsArray.join(' ')}`);
+
   try {
-    const output = execSync(cmd, {
+    const output = execFileSync('git', argsArray, {
       encoding: 'utf8',
       timeout,
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       maxBuffer: 10 * 1024 * 1024
     });
-    
-    return {
-      success: true,
-      output: output || '',
-      code: 0
-    };
+    return { success: true, output: output || '', code: 0 };
   } catch (err) {
     // Don't log as error - git commands often fail expectedly (no repo, etc.)
-    return {
-      success: false,
-      output: err.stderr || err.stdout || err.message || '',
-      code: err.status || 1
-    };
+    return { success: false, output: err.stderr || err.stdout || err.message || '', code: err.status || 1 };
   }
 }
 
@@ -533,7 +523,7 @@ function hasScript(scriptName, projectRoot) {
  * @returns {boolean} True if in git repo
  */
 function isGitRepo(cwd) {
-  const result = runGitCommand('rev-parse --git-dir', { cwd, timeout: 5000 });
+  const result = runGitCommand(['rev-parse', '--git-dir'], { cwd, timeout: 5000 });
   return result.success;
 }
 
@@ -543,7 +533,7 @@ function isGitRepo(cwd) {
  * @returns {boolean} True if there are uncommitted changes
  */
 function hasUncommittedChanges(cwd) {
-  const result = runGitCommand('status --porcelain', { cwd, timeout: 5000 });
+  const result = runGitCommand(['status', '--porcelain'], { cwd, timeout: 5000 });
   return result.success && result.output.trim().length > 0;
 }
 
@@ -554,7 +544,7 @@ function hasUncommittedChanges(cwd) {
  * @returns {string} Commit log or empty string
  */
 function getRecentCommits(count, cwd) {
-  const result = runGitCommand(`log --oneline -${count}`, { cwd, timeout: 10000 });
+  const result = runGitCommand(['log', '--oneline', `-${count}`], { cwd, timeout: 10000 });
   return result.success ? result.output.trim() : '';
 }
 
@@ -565,7 +555,7 @@ function getRecentCommits(count, cwd) {
  * @returns {string[]} List of changed file paths
  */
 function getRecentlyChangedFiles(commitCount, cwd) {
-  const result = runGitCommand(`diff --name-only HEAD~${commitCount}`, { cwd, timeout: 10000 });
+  const result = runGitCommand(['diff', '--name-only', `HEAD~${commitCount}`], { cwd, timeout: 10000 });
   if (!result.success) return [];
   
   return result.output
@@ -582,11 +572,16 @@ function getRecentlyChangedFiles(commitCount, cwd) {
  */
 function createGitCheckpoint(message, cwd) {
   if (!hasUncommittedChanges(cwd)) {
-    return false;  // Nothing to checkpoint
+    return false;
   }
-  
-  const result = runGitCommand(`stash push -m "${message}"`, { cwd, timeout: 30000 });
-  return result.success;
+  // Create stash entry WITHOUT clearing working tree
+  const createResult = runGitCommand(['stash', 'create'], { cwd, timeout: 30000 });
+  if (!createResult.success || !createResult.output.trim()) {
+    return false;
+  }
+  const stashHash = createResult.output.trim();
+  const storeResult = runGitCommand(['stash', 'store', '-m', message, stashHash], { cwd, timeout: 30000 });
+  return storeResult.success;
 }
 
 module.exports = {

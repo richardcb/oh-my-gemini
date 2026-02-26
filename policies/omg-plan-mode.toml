@@ -30,7 +30,7 @@ deny_message = "Plan mode active: Shell commands are blocked. Exit plan mode to 
 
 # Allow all read operations in plan mode
 [[rule]]
-toolName = ["read_file", "list_dir", "glob", "search_file_content", "read_many_files"]
+toolName = ["read_file", "list_directory", "glob", "search_file_content", "read_many_files"]
 decision = "allow"
 priority = 600
 

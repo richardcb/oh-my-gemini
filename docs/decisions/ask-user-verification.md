@@ -1,6 +1,6 @@
 # Decision Record: ask_user Verification Integration
 
-**Status:** Accepted
+**Status:** NOT IMPLEMENTED - Design exploration only. The actual system uses advisory mode (systemMessage) exclusively. See hooks/phase-gate.js.
 **Date:** 2026-02-27
 **Context:** v0.30.0 alignment (PRD 0002)
 

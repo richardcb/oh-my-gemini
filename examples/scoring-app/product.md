@@ -1,12 +1,12 @@
-# Product Guide: I2N Scoring Platform
+# Product Guide: Scoring Platform
 
 *This is an example product context from a real production project.*
 
 ## Initial Concept
-A secure, web-based platform designed to streamline the evaluation process for innovation program applicants (Accelerator, Pre-Accelerator, FLIP). It replaces manual spreadsheet workflows with a unified interface for scoring, filtering, and managing applicant cohorts.
+A secure, web-based platform designed to streamline the evaluation process for innovation program applicants (Accelerator, Pre-Accelerator). It replaces manual spreadsheet workflows with a unified interface for scoring, filtering, and managing applicant cohorts.
 
 ## Problem Statement
-Managing multiple innovation programs is complex and often fragmented. Existing systems (like SharePoint) are often described as "clunky" and "not user-friendly," leading to buried content and inefficient workflows.
+Managing multiple innovation programs is complex and often fragmented. Existing systems are often described as "clunky" and "not user-friendly," leading to buried content and inefficient workflows.
 
 ## Target Audience
 - **Scorers:** Subject matter experts evaluating applicants.

@@ -1,7 +1,7 @@
 ---
 name: architect
 description: System design and architecture specialist. Handles complex debugging, architectural decisions, and breaking down large problems into implementable components. Does not write code directly.
-model: gemini-3-pro-preview
+model: gemini-3.1-pro-preview
 tools:
   - read_file
   - list_directory

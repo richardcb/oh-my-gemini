@@ -44,3 +44,10 @@ secrets/
 
 # oh-my-gemini local files (tracks are project-specific)
 # conductor/tracks/ should be committed, but you may want to gitignore WIP tracks
+
+# Local development docs (not part of the published extension)
+docs/PRD/
+docs/command_steps/
+
+# Local IDE/tool settings
+.claude/

@@ -1,5 +1,4 @@
 {
-  "$schema": "./config.schema.json",
   "version": "1.0.0",
   
   "phaseGates": {
@@ -62,16 +61,16 @@
       "researcher": {
         "allowed": [
           "google_web_search",
-          "web_fetch", 
+          "web_fetch",
           "read_file",
-          "list_dir",
+          "list_directory",
           "glob"
         ]
       },
       "architect": {
         "allowed": [
           "read_file",
-          "list_dir",
+          "list_directory",
           "glob",
           "search_file_content"
         ]

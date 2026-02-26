@@ -78,14 +78,14 @@ const DEFAULT_CONFIG = {
           'google_web_search',
           'web_fetch',
           'read_file',
-          'list_dir',
+          'list_directory',
           'glob'
         ]
       },
       architect: {
         allowed: [
           'read_file',
-          'list_dir',
+          'list_directory',
           'glob',
           'search_file_content'
         ]
@@ -202,7 +202,23 @@ function loadConfig(projectRoot) {
       config = deepMerge(config, projectConfig);
     }
   }
-  
+
+  // Enforce security minimums - union blocklists with defaults (can only extend, never reduce)
+  if (DEFAULT_CONFIG.security) {
+    config.security.blockedCommands = [
+      ...new Set([...DEFAULT_CONFIG.security.blockedCommands, ...(config.security.blockedCommands || [])])
+    ];
+    config.security.blockedPaths = [
+      ...new Set([...DEFAULT_CONFIG.security.blockedPaths, ...(config.security.blockedPaths || [])])
+    ];
+  }
+
+  // Enforce safe limits
+  config.ralph = config.ralph || {};
+  config.ralph.maxRetries = Math.min(config.ralph.maxRetries || 5, 20);
+  config.autoVerification = config.autoVerification || {};
+  config.autoVerification.timeout = Math.min(config.autoVerification.timeout || 30000, 120000);
+
   return config;
 }
 

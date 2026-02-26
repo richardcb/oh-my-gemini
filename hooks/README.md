@@ -6,7 +6,7 @@ This directory contains the hook system that transforms oh-my-gemini from a prom
 
 ## Cross-Platform Support
 
-**v2.0.1** adds full Windows compatibility:
+**v1.0.0** adds full Windows compatibility:
 
 - ✅ Works on Windows (cmd.exe / PowerShell)
 - ✅ Works on macOS
@@ -140,10 +140,8 @@ Filters available tools based on detected agent mode.
 
 Enforces Conductor phase verification gates with session-aware plan loading.
 
-**Verification Tiers (v0.30.0):**
-1. **`ask_user` available:** Instructs the model to call `ask_user` with a yes/no verification question
-2. **Strict mode (fallback):** Blocks progression with `decision: "deny"`
-3. **Advisory mode (fallback):** Shows warning message via `systemMessage`
+**Verification Mode:**
+Phase gates use advisory mode only: when a Conductor phase completes, the hook injects a `systemMessage` guiding the agent to verify tasks before proceeding. There is no strict blocking or `ask_user` prompting.
 
 **Session-Aware Plan Loading:**
 Checks for session-specific plan files before falling back to global Conductor state:
@@ -271,8 +269,10 @@ See `docs/decisions/masking-compatibility.md` for full details.
 
 ## Changelog
 
-### v2.1.0 (v0.30.0 Alignment)
-- `ask_user` support in phase gates (three-tier verification)
+### v1.0.0 (Published Extension Release)
+Includes all development milestones below.
+
+#### Internal milestone: v0.30.0 Alignment
 - Session-aware plan loading (`resolveSessionPlanPath`)
 - Dual-channel context injection for masking compatibility
 - Policy migration: `commandPrefix` → `commandRegex` in `omg-security.toml`
@@ -281,13 +281,13 @@ See `docs/decisions/masking-compatibility.md` for full details.
 - Engine requirement bumped to `>=0.30.0`
 - `sessionPlanPath` config key for manual session path override
 
-### v2.0.1
+#### Internal milestone: Windows Compatibility
 - Added full Windows compatibility
 - New `platform.js` module for cross-platform utilities
 - Windows-specific security patterns
 - Fixed `2>/dev/null` and other bash-isms on Windows
 - npm/npx commands use `.cmd` extension on Windows
 
-### v2.0.0
+#### Internal milestone: Initial Implementation
 - Initial hook-based implementation
 - Replaced prompt-based enforcement with deterministic hooks

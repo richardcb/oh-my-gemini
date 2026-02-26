@@ -1,4 +1,4 @@
-# Technology Stack: I2N Scoring Platform
+# Technology Stack: Scoring Platform
 
 *This is an example tech stack from a real production project.*
 

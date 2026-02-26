@@ -1,6 +1,6 @@
 # oh-my-gemini Hooks Reference
 
-oh-my-gemini v2.0 uses Gemini CLI's hook system to enforce workflows deterministically. This document covers all hooks, their configuration, and customization options.
+oh-my-gemini v1.0.0 uses Gemini CLI's hook system to enforce workflows deterministically. This document covers all hooks, their configuration, and customization options.
 
 ## Overview
 
@@ -102,8 +102,8 @@ Plan State: Active (session abc123)
 
 | Mode | Detection | Allowed Tools |
 |------|-----------|---------------|
-| `@researcher` | "@researcher" in prompt | read_file, list_dir, google_web_search, web_fetch |
-| `@architect` | "@architect" in prompt | read_file, list_dir, glob, search_file_content |
+| `@researcher` | "@researcher" in prompt | read_file, list_directory, google_web_search, web_fetch |
+| `@architect` | "@architect" in prompt | read_file, list_directory, glob, search_file_content |
 | `@executor` | Default / "@executor" | All tools (with security gates) |
 
 **Configuration:**
@@ -117,13 +117,13 @@ Plan State: Active (session abc123)
           "google_web_search",
           "web_fetch",
           "read_file",
-          "list_dir"
+          "list_directory"
         ]
       },
       "architect": {
         "allowed": [
           "read_file",
-          "list_dir",
+          "list_directory",
           "glob",
           "search_file_content"
         ]
@@ -256,23 +256,12 @@ src/auth.ts:45:10 - error TS2339: Property 'name' does not exist on type 'User'.
 
 **Purpose:**
 - Detect Conductor phase completion
-- Enforce verification gates with `ask_user` support (v0.30.0)
+- Inject advisory guidance via `systemMessage`
 - Session-aware plan loading
 
-**Verification Tiers (v0.30.0):**
+**Verification Mode:**
 
-1. **`ask_user` available:** Instructs the model to call `ask_user` with:
-   ```json
-   { "question": "Phase 'Data Layer' is complete. Have you verified all tasks?", "question_type": "yes_no" }
-   ```
-   This provides native interactive verification.
-
-2. **Strict mode (fallback):** If `ask_user` is not available, blocks progression with `decision: "deny"`.
-
-3. **Advisory mode (fallback):** Shows a `systemMessage` suggesting verification.
-
-**`ask_user` Detection:**
-The hook checks the input payload for `available_tools` or `tool_declarations` fields to detect if `ask_user` is available. In headless/non-interactive mode, `ask_user` may be absent — the hook falls back gracefully.
+Phase gates use **advisory mode only**: when a Conductor phase is detected as complete, the hook injects a `systemMessage` guiding the agent to verify tasks before proceeding. There is no strict blocking or native `ask_user` prompting — the agent receives the advisory message and acts accordingly.
 
 **Session-Aware Loading:**
 Uses `resolveSessionPlanPath()` to check for session-specific plan files before falling back to global Conductor state. See `session-start.js` for candidate paths.
@@ -397,10 +386,10 @@ Configuration is loaded with cascading priority:
     "enabled": true,
     "modes": {
       "researcher": {
-        "allowed": ["google_web_search", "web_fetch", "read_file", "list_dir"]
+        "allowed": ["google_web_search", "web_fetch", "read_file", "list_directory"]
       },
       "architect": {
-        "allowed": ["read_file", "list_dir", "glob", "search_file_content"]
+        "allowed": ["read_file", "list_directory", "glob", "search_file_content"]
       },
       "executor": {
         "allowed": "*"
@@ -575,13 +564,15 @@ See `docs/decisions/masking-compatibility.md` for full investigation details.
 
 ## Changelog
 
-### v2.1.0 (v0.30.0 Alignment)
-- `ask_user` support in phase gates (three-tier verification)
+### v1.0.0 (Published Extension Release)
+Includes all development milestones below.
+
+#### Internal milestone: v0.30.0 Alignment
 - Session-aware plan loading in session-start.js and phase-gate.js
 - Dual-channel context injection for masking compatibility
 - `sessionPlanPath` config key for manual session path override
 
-### v2.0.0
+#### Internal milestone: Initial Implementation
 - Initial hook implementation
 - Replaced prompt-based enforcement with deterministic hooks
 - Added 7 hooks: session-start, before-agent, tool-filter, before-tool, after-tool, phase-gate, ralph-retry
