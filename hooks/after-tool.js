@@ -264,19 +264,20 @@ async function main() {
       }
     }
     
-    // --- Build Output ---
+    // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
-    
+
     if (additionalContext.trim()) {
       output.hookSpecificOutput = {
-        additionalContext: `## 🔍 Auto-Verification Results\n${additionalContext.trim()}`
+        additionalContext: `## Auto-Verification Results\n${additionalContext.trim()}`
       };
     }
-    
+
+    // Critical errors always go via systemMessage (survives masking)
     if (hasErrors) {
-      output.systemMessage = '⚠️ Verification found type errors - review before continuing';
+      output.systemMessage = 'Verification found type errors — review before continuing';
     }
-    
+
     writeOutput(output);
   } catch (err) {
     log(`AfterTool hook error: ${err.message}`);

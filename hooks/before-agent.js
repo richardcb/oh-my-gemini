@@ -127,13 +127,28 @@ async function main() {
       }
     }
 
-    // --- Build Output ---
+    // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
 
     if (additionalContext.trim()) {
       output.hookSpecificOutput = {
         additionalContext: additionalContext.trim()
       };
+      // Dual-channel: provide a brief systemMessage summary as fallback
+      // in case tool output masking strips additionalContext
+      const summaryParts = [];
+      if (agentMode !== 'executor') {
+        summaryParts.push(`Mode: ${agentMode}`);
+      }
+      if (additionalContext.includes('Conductor Task')) {
+        summaryParts.push('Conductor context injected');
+      }
+      if (additionalContext.includes('Git History')) {
+        summaryParts.push('Git history injected');
+      }
+      if (summaryParts.length > 0) {
+        output.systemMessage = `[omg:context] ${summaryParts.join(' | ')}`;
+      }
     }
 
     writeOutput(output);

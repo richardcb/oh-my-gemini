@@ -135,14 +135,21 @@ Filters available tools based on detected agent mode.
 
 ### PhaseGate Hook
 
-**Event:** `AfterAgent`  
+**Event:** `AfterAgent`
 **File:** `phase-gate.js`
 
-Enforces Conductor phase verification gates.
+Enforces Conductor phase verification gates with session-aware plan loading.
 
-**Modes:**
-- **Advisory (default):** Shows warning message
-- **Strict:** Blocks progression until verification
+**Verification Tiers (v0.30.0):**
+1. **`ask_user` available:** Instructs the model to call `ask_user` with a yes/no verification question
+2. **Strict mode (fallback):** Blocks progression with `decision: "deny"`
+3. **Advisory mode (fallback):** Shows warning message via `systemMessage`
+
+**Session-Aware Plan Loading:**
+Checks for session-specific plan files before falling back to global Conductor state:
+- `.gemini/sessions/{session_id}/plan.md`
+- `.gemini/memory/sessions/{session_id}/plan.md`
+- `.gemini/plans/{session_id}.md`
 
 ### RalphRetry Hook
 
@@ -239,7 +246,40 @@ export OMG_DEBUG=1
 echo '{"prompt": "test"}' | node hooks/session-start.js
 ```
 
+## Tool Output Masking (v0.30.0)
+
+Gemini CLI v0.30.0 enables tool output masking by default. This affects how hook-injected context reaches the model.
+
+**Behavior:**
+- `systemMessage` output always survives masking (separate channel)
+- `additionalContext` in `hookSpecificOutput` may be stripped under aggressive masking
+
+**Dual-Channel Strategy:**
+oh-my-gemini hooks use dual-channel injection:
+- Critical context (errors, phase gates) → `systemMessage` (guaranteed delivery)
+- Supplementary context (git history, Conductor state) → `additionalContext` with `systemMessage` summary fallback
+
+**If masking causes issues:**
+Add to `.gemini/settings.json`:
+```json
+{
+  "toolOutputMasking": false
+}
+```
+
+See `docs/decisions/masking-compatibility.md` for full details.
+
 ## Changelog
+
+### v2.1.0 (v0.30.0 Alignment)
+- `ask_user` support in phase gates (three-tier verification)
+- Session-aware plan loading (`resolveSessionPlanPath`)
+- Dual-channel context injection for masking compatibility
+- Policy migration: `commandPrefix` → `commandRegex` in `omg-security.toml`
+- New `omg-plan-mode.toml` policy for plan-mode write restrictions
+- Removed `experimental` block from manifest (features stable in v0.30.0)
+- Engine requirement bumped to `>=0.30.0`
+- `sessionPlanPath` config key for manual session path override
 
 ### v2.0.1
 - Added full Windows compatibility

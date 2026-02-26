@@ -23,20 +23,29 @@ Hooks are scripts that execute at specific points in Gemini CLI's lifecycle. The
 
 ### session-start.js
 
-**Event:** SessionStart  
+**Event:** SessionStart
 **Fires:** On startup, resume, or context clear
 
 **Purpose:**
-- Load Conductor track state
-- Inject project context
+- Load session-specific or global Conductor track state
+- Inject project context with plan state label
 - Display welcome message with status
+
+**Session-Aware Plan Loading (v0.30.0):**
+The hook now attempts to load a session-specific plan before falling back to the global Conductor plan. It checks:
+1. `.gemini/sessions/{session_id}/plan.md`
+2. `.gemini/memory/sessions/{session_id}/plan.md`
+3. `.gemini/plans/{session_id}.md`
+
+If no session plan is found, falls back to `loadConductorState()` (global).
 
 **Output Example:**
 ```
-🚀 oh-my-gemini ready | 📋 Active track: User Authentication (45% complete)
+oh-my-gemini ready | Conductor: User Authentication (45% complete)
+Plan State: Active (session abc123)
 ```
 
-**Configuration:** None (always active)
+**Configuration:** None (always active). Override session plan path with `sessionPlanPath` in config.
 
 ---
 
@@ -242,40 +251,31 @@ src/auth.ts:45:10 - error TS2339: Property 'name' does not exist on type 'User'.
 
 ### phase-gate.js
 
-**Event:** AfterAgent  
+**Event:** AfterAgent
 **Fires:** After every agent response
 
 **Purpose:**
 - Detect Conductor phase completion
-- Enforce verification gates
-- Prompt for confirmation (strict mode)
+- Enforce verification gates with `ask_user` support (v0.30.0)
+- Session-aware plan loading
 
-**Detection Patterns:**
-- "Phase N complete"
-- "Completed phase N"
-- "Moving to phase N"
-- "All tasks in this phase complete"
+**Verification Tiers (v0.30.0):**
 
-**Advisory Mode (default):**
-Shows a message but allows continuation:
-```
-📋 Phase Gate: Phase 1 complete (33%). Consider verifying before proceeding.
-```
+1. **`ask_user` available:** Instructs the model to call `ask_user` with:
+   ```json
+   { "question": "Phase 'Data Layer' is complete. Have you verified all tasks?", "question_type": "yes_no" }
+   ```
+   This provides native interactive verification.
 
-**Strict Mode:**
-Forces a retry with verification requirements:
-```markdown
-🔍 **Phase Gate: Data Layer & Types**
+2. **Strict mode (fallback):** If `ask_user` is not available, blocks progression with `decision: "deny"`.
 
-Before proceeding to the next phase, please:
+3. **Advisory mode (fallback):** Shows a `systemMessage` suggesting verification.
 
-1. **Summarize** what was accomplished
-2. **Verify** all requirements are met
-3. **Update** the plan.md file
-4. **Wait for user confirmation**
+**`ask_user` Detection:**
+The hook checks the input payload for `available_tools` or `tool_declarations` fields to detect if `ask_user` is available. In headless/non-interactive mode, `ask_user` may be absent — the hook falls back gracefully.
 
-Do not proceed until the user explicitly confirms.
-```
+**Session-Aware Loading:**
+Uses `resolveSessionPlanPath()` to check for session-specific plan files before falling back to global Conductor state. See `session-start.js` for candidate paths.
 
 **Configuration:**
 ```json
@@ -450,15 +450,8 @@ Configuration is loaded with cascading priority:
    gemini extensions list
    ```
 
-3. **Check experimental features:**
-   ```json
-   // ~/.gemini/settings.json
-   {
-     "experimental": {
-       "hooks": true
-     }
-   }
-   ```
+3. **Check settings (v0.30.0+ — no experimental flags needed):**
+   Hooks are stable in v0.30.0+. If using an older CLI version, ensure experimental flags are set in `~/.gemini/settings.json`.
 
 ### Verification Failing
 
@@ -569,7 +562,24 @@ Hooks communicate with Gemini CLI via JSON:
 
 ---
 
+## Tool Output Masking (v0.30.0)
+
+v0.30.0 enables tool output masking by default. oh-my-gemini hooks use a dual-channel injection strategy:
+
+- **`systemMessage`**: Always survives masking. Used for critical context (verification errors, phase gate warnings).
+- **`additionalContext`**: May be stripped under aggressive masking. Used for supplementary context with `systemMessage` fallback.
+
+If masking causes context loss, add `"toolOutputMasking": false` to `.gemini/settings.json`.
+
+See `docs/decisions/masking-compatibility.md` for full investigation details.
+
 ## Changelog
+
+### v2.1.0 (v0.30.0 Alignment)
+- `ask_user` support in phase gates (three-tier verification)
+- Session-aware plan loading in session-start.js and phase-gate.js
+- Dual-channel context injection for masking compatibility
+- `sessionPlanPath` config key for manual session path override
 
 ### v2.0.0
 - Initial hook implementation

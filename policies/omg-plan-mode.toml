@@ -1,0 +1,41 @@
+# oh-my-gemini Plan Mode Policy
+#
+# Restricts write operations when plan mode is active.
+# This policy should be loaded via --policy flag when entering plan mode,
+# or automatically if conditional rules are supported in the CLI version.
+#
+# Priority: 400-600 range (below omg-security.toml so security rules always win)
+
+# =============================================================================
+# PLAN MODE - DENY WRITE OPERATIONS
+# =============================================================================
+
+# Block file writes in plan mode
+[[rule]]
+toolName = ["write_file", "replace", "edit_file", "create_file"]
+decision = "deny"
+priority = 500
+deny_message = "Plan mode active: Write operations are blocked. Exit plan mode to make changes."
+
+# Block shell commands in plan mode (could modify files)
+[[rule]]
+toolName = "run_shell_command"
+decision = "deny"
+priority = 500
+deny_message = "Plan mode active: Shell commands are blocked. Exit plan mode to execute commands."
+
+# =============================================================================
+# PLAN MODE - ALLOW READ OPERATIONS
+# =============================================================================
+
+# Allow all read operations in plan mode
+[[rule]]
+toolName = ["read_file", "list_dir", "glob", "search_file_content", "read_many_files"]
+decision = "allow"
+priority = 600
+
+# Allow web search and fetch in plan mode (research is encouraged)
+[[rule]]
+toolName = ["web_fetch", "google_web_search"]
+decision = "allow"
+priority = 600

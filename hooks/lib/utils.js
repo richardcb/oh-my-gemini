@@ -199,6 +199,42 @@ function loadConductorState(projectRoot) {
 }
 
 /**
+ * Resolve session-specific plan file path
+ * Checks candidate paths in priority order, falls back to global plan.
+ * @param {string} sessionId - Session ID from hook input
+ * @param {string} projectRoot - Project root directory
+ * @returns {object} { path: string|null, source: 'session'|'global'|null }
+ */
+function resolveSessionPlanPath(sessionId, projectRoot) {
+  // If no session ID, skip session-specific resolution
+  if (!sessionId) {
+    debug('resolveSessionPlanPath: no session ID provided');
+    return { path: null, source: null };
+  }
+
+  // Check candidate paths in priority order
+  const candidates = [
+    path.join(projectRoot, '.gemini', 'sessions', sessionId, 'plan.md'),
+    path.join(projectRoot, '.gemini', 'memory', 'sessions', sessionId, 'plan.md'),
+    path.join(projectRoot, '.gemini', 'plans', `${sessionId}.md`)
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        debug(`resolveSessionPlanPath: found session plan at ${candidate}`);
+        return { path: candidate, source: 'session' };
+      }
+    } catch {
+      // Ignore access errors
+    }
+  }
+
+  debug('resolveSessionPlanPath: no session-specific plan found');
+  return { path: null, source: null };
+}
+
+/**
  * Calculate progress from a plan.md file
  * @param {string} planContent - Content of plan.md
  * @returns {object} Progress object with completed, total, percentage
@@ -506,6 +542,7 @@ module.exports = {
   
   // Conductor
   loadConductorState,
+  resolveSessionPlanPath,
   calculateProgress,
   findCurrentTask,
   

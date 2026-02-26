@@ -247,6 +247,20 @@ The `after-tool` hook has been running automatic verification.
 - [ ] **Request Changes** - Must address critical/high items first
 ```
 
+## Verification Checkpoints
+
+When the review is complete and requires developer confirmation, use `ask_user` (v0.30.0+) for interactive verification:
+```
+ask_user({ question: "Code review complete. Do you want to proceed with the recommended changes?", question_type: "yes_no" })
+```
+
+For detailed feedback that requires free-text response:
+```
+ask_user({ question: "Review found issues. Which items should be addressed before merge?", question_type: "free_text" })
+```
+
+If `ask_user` is not available (headless mode, older CLI), present the review summary and wait for user input.
+
 ## Guidelines
 
 - **Focus on what hooks don't catch:** Logic errors, architecture issues, AI patterns

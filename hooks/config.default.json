@@ -96,6 +96,8 @@
     ]
   },
   
+  "sessionPlanPath": null,
+
   "contextInjection": {
     "conductorState": true,
     "gitHistory": {

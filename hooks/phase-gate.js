@@ -26,6 +26,7 @@ const {
   debug,
   findProjectRoot,
   loadConductorState,
+  resolveSessionPlanPath,
   calculateProgress,
   platform
 } = require('./lib/utils');
@@ -137,6 +138,35 @@ function isVerificationComplete(phase) {
 }
 
 /**
+ * Detect whether ask_user is available in the current hook input.
+ * Gemini CLI v0.30.0+ may expose available tools via `available_tools`
+ * or `tool_declarations` fields on the hook input object.
+ * @param {object} input - Raw hook input
+ * @returns {boolean} True if ask_user tool is listed
+ */
+function isAskUserAvailable(input) {
+  // Check available_tools array (preferred field name)
+  if (Array.isArray(input.available_tools)) {
+    return input.available_tools.some(t => {
+      if (typeof t === 'string') return t === 'ask_user';
+      if (t && typeof t === 'object') return t.name === 'ask_user';
+      return false;
+    });
+  }
+
+  // Check tool_declarations array (alternate field name)
+  if (Array.isArray(input.tool_declarations)) {
+    return input.tool_declarations.some(t => {
+      if (typeof t === 'string') return t === 'ask_user';
+      if (t && typeof t === 'object') return t.name === 'ask_user';
+      return false;
+    });
+  }
+
+  return false;
+}
+
+/**
  * Main hook logic
  */
 async function main() {
@@ -144,85 +174,117 @@ async function main() {
     const input = await readInput();
     const promptResponse = input.prompt_response || '';
     const cwd = input.cwd || process.cwd();
-    
+
     log('PhaseGate hook fired');
     debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
-    
+
+    // Detect ask_user availability (v0.30.0 alignment)
+    const askUserAvailable = isAskUserAvailable(input);
+
     // Find project root
     const projectRoot = findProjectRoot(cwd);
-    
+
     // Load configuration
     const config = loadConfig(projectRoot);
-    
+
     // Check if phase gates are enabled
     if (!isFeatureEnabled(config, 'phaseGates')) {
       log('Phase gates are disabled');
       writeOutput({});
       return;
     }
-    
+
     const phaseGateConfig = getConfigValue(config, 'phaseGates', {});
     const strictMode = phaseGateConfig.strict || false;
-    
-    // Load Conductor state
-    const conductor = loadConductorState(projectRoot);
-    
+
+    // Load plan state: session-specific first, then global Conductor
+    const sessionId = input.session_id || null;
+    let conductor = null;
+
+    if (sessionId) {
+      const sessionPlan = resolveSessionPlanPath(sessionId, projectRoot);
+      if (sessionPlan.path) {
+        try {
+          const planContent = fs.readFileSync(sessionPlan.path, 'utf8');
+          conductor = {
+            active: true,
+            trackName: `session:${sessionId}`,
+            plan: planContent,
+            progress: calculateProgress(planContent)
+          };
+          log(`Loaded session-specific plan: ${sessionPlan.path}`);
+        } catch (err) {
+          log(`Failed to load session plan: ${err.message}`);
+        }
+      }
+    }
+
+    if (!conductor) {
+      conductor = loadConductorState(projectRoot);
+    }
+
     if (!conductor || !conductor.active || !conductor.plan) {
       log('No active Conductor track');
       writeOutput({});
       return;
     }
-    
+
     // Parse phases from plan
     const phases = parsePhases(conductor.plan);
-    
+
     if (phases.length === 0) {
       log('No phases found in plan');
       writeOutput({});
       return;
     }
-    
+
     // Find current phase
     const currentPhase = findCurrentPhase(phases);
-    
+
     if (!currentPhase) {
       log('All phases complete');
       writeOutput({});
       return;
     }
-    
+
     log(`Current phase: ${currentPhase.name} (${currentPhase.completed}/${currentPhase.total})`);
-    
+
     // Check if we're at a phase boundary
-    const allTasksComplete = currentPhase.tasks.every(t => 
-      t.completed || 
+    const allTasksComplete = currentPhase.tasks.every(t =>
+      t.completed ||
       t.text.toLowerCase().includes('verification') ||
       t.text.toLowerCase().includes('conductor')
     );
-    
+
     if (allTasksComplete && !isVerificationComplete(currentPhase)) {
-      // Phase work is done but verification isn't marked
-      const message = strictMode
-        ? `🚫 Phase Gate: "${currentPhase.name}" tasks complete. Please verify and mark the verification task as complete before proceeding.`
-        : `⚠️ Phase Gate (Advisory): "${currentPhase.name}" tasks appear complete. Consider verifying before proceeding to the next phase.`;
-      
-      if (strictMode) {
+      // Three-tier gate logic: ask_user > strict deny > advisory systemMessage
+
+      if (askUserAvailable) {
+        // Tier 1: native ask_user verification (v0.30.0+)
+        log(`[omg:phase-gate] ask_user available — using native verification`);
+        const question = `Phase '${currentPhase.name}' is complete. Have you verified all tasks? (yes/no)`;
+        writeOutput({
+          systemMessage: `Use the ask_user tool to verify the phase gate before continuing. Call ask_user with: { "question": ${JSON.stringify(question)}, "question_type": "yes_no" }`
+        });
+      } else if (strictMode) {
+        // Tier 2: strict deny (blocks the response)
+        log(`[omg:phase-gate] ask_user not available — using prompt-based verification`);
         log(`BLOCKING: Phase "${currentPhase.name}" needs verification`);
-        // In strict mode, block the response
         writeOutput({
           decision: 'deny',
-          reason: message
+          reason: `Phase Gate: "${currentPhase.name}" tasks complete. Please verify and mark the verification task as complete before proceeding.`
         });
       } else {
-        // In advisory mode, just add a system message
+        // Tier 3: advisory systemMessage
+        log(`[omg:phase-gate] ask_user not available — using prompt-based verification`);
         log(`ADVISORY: Phase "${currentPhase.name}" needs verification`);
         writeOutput({
-          systemMessage: message
+          systemMessage: `Phase Gate (Advisory): "${currentPhase.name}" tasks appear complete. Consider verifying before proceeding to the next phase.`
         });
       }
       return;
     }
-    
+
     // No gate triggered
     writeOutput({});
   } catch (err) {

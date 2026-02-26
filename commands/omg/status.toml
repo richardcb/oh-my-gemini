@@ -27,6 +27,11 @@ You are the oh-my-gemini status reporter. Generate a comprehensive status report
 !{find conductor/tracks -name "metadata.json" -exec cat {} \\; 2>/dev/null || echo "NO_TRACKS"}
 ```
 
+### Session Plan Check
+```
+!{ls -la .gemini/sessions/*/plan.md 2>/dev/null || ls -la .gemini/plans/*.md 2>/dev/null || echo "NO_SESSION_PLAN: No session-specific plans found"}
+```
+
 ### Recent Git Activity
 ```
 !{git log --oneline -5 2>/dev/null || echo "NOT_GIT: Not a git repository"}
@@ -43,34 +48,40 @@ Based on the REAL data above, generate a status report:
 
 ### 1. Configuration Status
 ```
-⚙️  Configuration
-   GEMINI.md:     [✅ Found / ❌ Not found]
-   Conductor:     [✅ Initialized / ❌ Not set up]
+Configuration
+   GEMINI.md:     [Found / Not found]
+   Conductor:     [Initialized / Not set up]
    MCP Servers:   [List configured servers]
-   Git Repo:      [✅ Yes / ❌ No]
+   Git Repo:      [Yes / No]
 ```
 
-### 2. Active Tracks
+### 2. Plan State
+Based on the Session Plan Check above, determine:
+- If session-specific plan found: `Plan state: Active (session {id})`
+- If no session plan but global Conductor plan exists: `Plan state: Active (global — session path not resolved)`
+- If no plan at all: `Plan state: No plan active in this session`
+
+### 3. Active Tracks
 If conductor/tracks.md exists and has tracks:
 ```
-📋 Active Tracks
+Active Tracks
    #001 [track-name]    [STATUS] Phase X/Y
 ```
 
 If no tracks:
 ```
-📋 Active Tracks
+Active Tracks
    No active tracks. Run /omg:track "feature name" to start one.
 ```
 
-### 3. Recent Activity
+### 4. Recent Activity
 ```
-📊 Recent Activity
+Recent Activity
    Last commit:   [From git log]
    Track status:  [From metadata.json]
 ```
 
-### 4. Quick Actions
+### 5. Quick Actions
 Suggest relevant next steps based on current state:
 
 **If no GEMINI.md:**

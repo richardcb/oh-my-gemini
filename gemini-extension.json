@@ -16,13 +16,13 @@
     "docs-first"
   ],
   "engines": {
-    "gemini-cli": ">=0.26.0"
+    "gemini-cli": ">=0.30.0"
   },
   "commands": [
     "commands/omg"
   ],
   "agents": [
-    "agents"
+    ".gemini/agents"
   ],
   "skills": [
     "skills"
@@ -141,10 +141,5 @@
       "type": "boolean",
       "default": true
     }
-  },
-  "experimental": {
-    "enableAgents": true,
-    "skills": true,
-    "hooks": true
   }
 }

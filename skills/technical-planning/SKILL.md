@@ -110,10 +110,17 @@ For async or multi-step logic:
 
 ### 6. Add Verification Gates
 
+Each phase must end with a verification checkpoint. When `ask_user` is available (v0.30.0+), use it for interactive verification:
+```
+ask_user({ question: "Phase '[Phase Name]' is complete. Have you verified all tasks?", question_type: "yes_no" })
+```
+
 Each phase must end with:
 ```markdown
 - [ ] Task: Conductor - User Manual Verification '[Phase Name]' (Protocol in workflow.md)
 ```
+
+If `ask_user` is not available (headless mode, older CLI), the phase-gate hook handles verification via prompt-based instructions.
 
 ## Output Format
 

@@ -70,10 +70,19 @@ If errors appear, fix them before proceeding to the next task.
 ### Phase Gates (via Hooks)
 
 When you complete a phase, the `phase-gate` hook:
+- **`ask_user` available (v0.30.0+):** Instructs you to call `ask_user` with a yes/no verification question. Use this to confirm with the developer before proceeding to the next phase.
 - **Advisory mode (default):** Shows a message suggesting verification
 - **Strict mode:** Requires explicit user confirmation
 
 The hook detects phase completion from your response and handles the gate automatically.
+
+### Verification Checkpoints
+
+When completing a phase, use `ask_user` to confirm with the developer before proceeding:
+```
+ask_user({ question: "Phase 'Data Layer' is complete. Have you verified all tasks?", question_type: "yes_no" })
+```
+If `ask_user` is not available (headless mode, older CLI), the phase-gate hook falls back to prompt-based verification.
 
 ## Implementation Standards
 

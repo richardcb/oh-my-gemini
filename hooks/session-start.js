@@ -23,6 +23,7 @@ const {
   log,
   findProjectRoot,
   loadConductorState,
+  resolveSessionPlanPath,
   isGitRepo,
   hasUncommittedChanges,
   platform
@@ -49,6 +50,7 @@ async function main() {
     const input = await readInput();
     const cwd = input.cwd || process.cwd();
     const sessionType = input.session_type || 'start';
+    const sessionId = input.session_id || null;
     
     log(`SessionStart hook fired. CWD: ${cwd}, Type: ${sessionType}`);
     log(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
@@ -65,23 +67,58 @@ async function main() {
     
     // --- Conductor State ---
     if (isFeatureEnabled(config, 'contextInjection')) {
-      const conductor = loadConductorState(projectRoot);
-      
+      let conductor = null;
+      let planSource = 'global';
+
+      // Try session-specific plan first
+      if (sessionId) {
+        const sessionPlan = resolveSessionPlanPath(sessionId, projectRoot);
+        if (sessionPlan.path) {
+          try {
+            const planContent = require('fs').readFileSync(sessionPlan.path, 'utf8');
+            const { calculateProgress } = require('./lib/utils');
+            conductor = {
+              active: true,
+              trackName: `session:${sessionId}`,
+              plan: planContent,
+              progress: calculateProgress(planContent)
+            };
+            planSource = 'session';
+            log(`Loaded session-specific plan: ${sessionPlan.path}`);
+          } catch (err) {
+            log(`Failed to load session plan: ${err.message}`);
+          }
+        }
+      }
+
+      // Fall back to global Conductor state
+      if (!conductor) {
+        conductor = loadConductorState(projectRoot);
+        if (conductor && conductor.active) {
+          log('Session plan path not resolved — using global plan');
+        }
+      }
+
       if (conductor && conductor.active) {
         log(`Conductor active: ${conductor.trackName}`);
-        
-        additionalContext += '## 🎼 Conductor Status\n';
+
+        const planLabel = planSource === 'session'
+          ? `Active (session ${sessionId})`
+          : 'Active (global)';
+
+        additionalContext += '## Conductor Status\n';
+        additionalContext += `**Plan State:** ${planLabel}\n`;
         additionalContext += `**Active Track:** ${conductor.trackName}\n`;
         additionalContext += `**Progress:** ${formatProgressBar(conductor.progress.percentage)}\n`;
         additionalContext += `**Tasks:** ${conductor.progress.completed}/${conductor.progress.total} completed\n\n`;
-        
+
         // Add current task if available
         const currentTask = conductor.plan ? findCurrentTaskFromPlan(conductor.plan) : null;
         if (currentTask) {
           additionalContext += `**Current Task:** ${currentTask}\n\n`;
         }
-        
-        systemMessage = `🎼 Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
+
+        systemMessage = `Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
       }
     }
     
