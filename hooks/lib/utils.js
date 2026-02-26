@@ -200,12 +200,27 @@ function loadConductorState(projectRoot) {
 
 /**
  * Resolve session-specific plan file path
- * Checks candidate paths in priority order, falls back to global plan.
+ * Checks config override first, then candidate paths in priority order.
  * @param {string} sessionId - Session ID from hook input
  * @param {string} projectRoot - Project root directory
- * @returns {object} { path: string|null, source: 'session'|'global'|null }
+ * @param {object} [config] - Optional config object; if config.sessionPlanPath is set, check it first
+ * @returns {object} { path: string|null, source: 'session'|'config'|null }
  */
-function resolveSessionPlanPath(sessionId, projectRoot) {
+function resolveSessionPlanPath(sessionId, projectRoot, config) {
+  // Check config override first (sessionPlanPath user override)
+  if (config && config.sessionPlanPath) {
+    try {
+      const overridePath = path.resolve(projectRoot, config.sessionPlanPath);
+      if (fs.existsSync(overridePath)) {
+        debug(`resolveSessionPlanPath: found config override at ${overridePath}`);
+        return { path: overridePath, source: 'config' };
+      }
+    } catch {
+      // Ignore access errors
+    }
+    debug('resolveSessionPlanPath: config sessionPlanPath set but file not found');
+  }
+
   // If no session ID, skip session-specific resolution
   if (!sessionId) {
     debug('resolveSessionPlanPath: no session ID provided');
@@ -232,6 +247,50 @@ function resolveSessionPlanPath(sessionId, projectRoot) {
 
   debug('resolveSessionPlanPath: no session-specific plan found');
   return { path: null, source: null };
+}
+
+/**
+ * Load a session-specific or global Conductor plan.
+ * Consolidates the plan-loading logic used by session-start.js and phase-gate.js.
+ *
+ * Resolution order:
+ *   1. Config `sessionPlanPath` override (if set)
+ *   2. Session-specific candidate paths (if sessionId provided)
+ *   3. Global Conductor state (loadConductorState fallback)
+ *
+ * @param {string|null} sessionId - Session ID from hook input
+ * @param {string} projectRoot - Project root directory
+ * @param {object} [config] - Optional merged config object
+ * @returns {object|null} Conductor-shaped object { active, trackName, plan, progress, source } or null
+ */
+function loadSessionOrGlobalPlan(sessionId, projectRoot, config) {
+  // Try session-specific plan first
+  if (sessionId || (config && config.sessionPlanPath)) {
+    const sessionPlan = resolveSessionPlanPath(sessionId, projectRoot, config);
+    if (sessionPlan.path) {
+      try {
+        const planContent = fs.readFileSync(sessionPlan.path, 'utf8');
+        log(`Loaded session-specific plan: ${sessionPlan.path}`);
+        return {
+          active: true,
+          trackName: `session:${sessionId || 'override'}`,
+          plan: planContent,
+          progress: calculateProgress(planContent),
+          source: sessionPlan.source
+        };
+      } catch (err) {
+        log(`Failed to load session plan: ${err.message}`);
+      }
+    }
+  }
+
+  // Fall back to global Conductor state
+  const conductor = loadConductorState(projectRoot);
+  if (conductor && conductor.active) {
+    conductor.source = 'global';
+    log('Session plan path not resolved — using global plan');
+  }
+  return conductor;
 }
 
 /**
@@ -543,6 +602,7 @@ module.exports = {
   // Conductor
   loadConductorState,
   resolveSessionPlanPath,
+  loadSessionOrGlobalPlan,
   calculateProgress,
   findCurrentTask,
   

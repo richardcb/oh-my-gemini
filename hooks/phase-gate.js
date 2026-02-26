@@ -18,16 +18,13 @@
  */
 
 const path = require('path');
-const fs = require('fs');
 const {
   readInput,
   writeOutput,
   log,
   debug,
   findProjectRoot,
-  loadConductorState,
-  resolveSessionPlanPath,
-  calculateProgress,
+  loadSessionOrGlobalPlan,
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
@@ -199,29 +196,7 @@ async function main() {
 
     // Load plan state: session-specific first, then global Conductor
     const sessionId = input.session_id || null;
-    let conductor = null;
-
-    if (sessionId) {
-      const sessionPlan = resolveSessionPlanPath(sessionId, projectRoot);
-      if (sessionPlan.path) {
-        try {
-          const planContent = fs.readFileSync(sessionPlan.path, 'utf8');
-          conductor = {
-            active: true,
-            trackName: `session:${sessionId}`,
-            plan: planContent,
-            progress: calculateProgress(planContent)
-          };
-          log(`Loaded session-specific plan: ${sessionPlan.path}`);
-        } catch (err) {
-          log(`Failed to load session plan: ${err.message}`);
-        }
-      }
-    }
-
-    if (!conductor) {
-      conductor = loadConductorState(projectRoot);
-    }
+    const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
 
     if (!conductor || !conductor.active || !conductor.plan) {
       log('No active Conductor track');

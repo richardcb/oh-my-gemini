@@ -22,8 +22,7 @@ const {
   writeOutput,
   log,
   findProjectRoot,
-  loadConductorState,
-  resolveSessionPlanPath,
+  loadSessionOrGlobalPlan,
   isGitRepo,
   hasUncommittedChanges,
   platform
@@ -67,44 +66,14 @@ async function main() {
     
     // --- Conductor State ---
     if (isFeatureEnabled(config, 'contextInjection')) {
-      let conductor = null;
-      let planSource = 'global';
-
-      // Try session-specific plan first
-      if (sessionId) {
-        const sessionPlan = resolveSessionPlanPath(sessionId, projectRoot);
-        if (sessionPlan.path) {
-          try {
-            const planContent = require('fs').readFileSync(sessionPlan.path, 'utf8');
-            const { calculateProgress } = require('./lib/utils');
-            conductor = {
-              active: true,
-              trackName: `session:${sessionId}`,
-              plan: planContent,
-              progress: calculateProgress(planContent)
-            };
-            planSource = 'session';
-            log(`Loaded session-specific plan: ${sessionPlan.path}`);
-          } catch (err) {
-            log(`Failed to load session plan: ${err.message}`);
-          }
-        }
-      }
-
-      // Fall back to global Conductor state
-      if (!conductor) {
-        conductor = loadConductorState(projectRoot);
-        if (conductor && conductor.active) {
-          log('Session plan path not resolved — using global plan');
-        }
-      }
+      const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
 
       if (conductor && conductor.active) {
         log(`Conductor active: ${conductor.trackName}`);
 
-        const planLabel = planSource === 'session'
-          ? `Active (session ${sessionId})`
-          : 'Active (global)';
+        const planLabel = conductor.source === 'global'
+          ? 'Active (global)'
+          : `Active (session ${sessionId})`;
 
         additionalContext += '## Conductor Status\n';
         additionalContext += `**Plan State:** ${planLabel}\n`;

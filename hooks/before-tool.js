@@ -183,7 +183,7 @@ async function main() {
     const blockedPaths = securityConfig.blockedPaths || [];
     
     // --- Shell Command Security ---
-    if (toolName === 'run_shell_command' || toolName === 'execute_command') {
+    if (toolName === 'run_shell_command' || toolName === 'execute_command' || toolName === 'shell') {
       const command = toolInput.command || toolInput.cmd || '';
       
       const blockedPattern = isBlockedCommand(command, blockedCommands);

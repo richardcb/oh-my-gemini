@@ -30,36 +30,103 @@ const {
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
-// In-memory attempt tracking (resets on new session)
-const attemptTracker = new Map();
+// Max age for stale session entries (24 hours in ms)
+const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Get the path to the ralph state file
+ * @param {string} projectRoot - Project root directory
+ * @returns {string} Path to ralph-state.json
+ */
+function getStateFilePath(projectRoot) {
+  return path.join(projectRoot, '.gemini', 'ralph-state.json');
+}
+
+/**
+ * Load ralph state from disk
+ * @param {string} projectRoot - Project root directory
+ * @returns {object} State object with sessions map
+ */
+function loadState(projectRoot) {
+  const stateFile = getStateFilePath(projectRoot);
+  try {
+    if (fs.existsSync(stateFile)) {
+      return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    }
+  } catch (err) {
+    debug(`Failed to load ralph state: ${err.message}`);
+  }
+  return { sessions: {} };
+}
+
+/**
+ * Save ralph state to disk
+ * @param {string} projectRoot - Project root directory
+ * @param {object} state - State object to persist
+ */
+function saveState(projectRoot, state) {
+  const stateFile = getStateFilePath(projectRoot);
+  try {
+    const dir = path.dirname(stateFile);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(stateFile, JSON.stringify(state, null, 2));
+  } catch (err) {
+    debug(`Failed to save ralph state: ${err.message}`);
+  }
+}
+
+/**
+ * Clean stale session entries older than STALE_THRESHOLD_MS
+ * @param {object} state - State object
+ * @returns {object} Cleaned state
+ */
+function cleanStaleEntries(state) {
+  const now = Date.now();
+  for (const [sid, entry] of Object.entries(state.sessions)) {
+    if (now - (entry.timestamp || 0) > STALE_THRESHOLD_MS) {
+      delete state.sessions[sid];
+    }
+  }
+  return state;
+}
 
 /**
  * Get session-specific attempt count
  * @param {string} sessionId - Session identifier
+ * @param {string} projectRoot - Project root directory
  * @returns {number} Current attempt count
  */
-function getAttemptCount(sessionId) {
-  return attemptTracker.get(sessionId) || 0;
+function getAttemptCount(sessionId, projectRoot) {
+  const state = loadState(projectRoot);
+  return (state.sessions[sessionId] && state.sessions[sessionId].attempts) || 0;
 }
 
 /**
- * Increment attempt count for session
+ * Increment attempt count for session (persisted to disk)
  * @param {string} sessionId - Session identifier
+ * @param {string} projectRoot - Project root directory
  * @returns {number} New attempt count
  */
-function incrementAttempts(sessionId) {
-  const current = getAttemptCount(sessionId);
+function incrementAttempts(sessionId, projectRoot) {
+  const state = cleanStaleEntries(loadState(projectRoot));
+  const current = (state.sessions[sessionId] && state.sessions[sessionId].attempts) || 0;
   const newCount = current + 1;
-  attemptTracker.set(sessionId, newCount);
+  state.sessions[sessionId] = { attempts: newCount, timestamp: Date.now() };
+  saveState(projectRoot, state);
   return newCount;
 }
 
 /**
- * Reset attempt count for session
+ * Reset attempt count for session (persisted to disk)
  * @param {string} sessionId - Session identifier
+ * @param {string} projectRoot - Project root directory
  */
-function resetAttempts(sessionId) {
-  attemptTracker.delete(sessionId);
+function resetAttempts(sessionId, projectRoot) {
+  const state = loadState(projectRoot);
+  delete state.sessions[sessionId];
+  saveState(projectRoot, state);
 }
 
 /**
@@ -204,26 +271,26 @@ async function main() {
     // Check if response indicates success
     if (detectsSuccess(promptResponse)) {
       log('Response indicates success, resetting attempts');
-      resetAttempts(sessionId);
+      resetAttempts(sessionId, projectRoot);
       writeOutput({});
       return;
     }
-    
+
     // Check if response indicates failure
     if (!detectsFailure(promptResponse, triggerPatterns)) {
       log('Response does not indicate failure');
       writeOutput({});
       return;
     }
-    
+
     // Increment attempt count
-    const attempts = incrementAttempts(sessionId);
+    const attempts = incrementAttempts(sessionId, projectRoot);
     log(`Failure detected. Attempt ${attempts}/${maxRetries}`);
-    
+
     if (attempts >= maxRetries) {
       // Max retries reached - escalate to user
       log('Max retries reached, escalating to user');
-      resetAttempts(sessionId);
+      resetAttempts(sessionId, projectRoot);
       
       writeOutput({
         systemMessage: `🛑 Ralph Mode: Reached ${maxRetries} attempts. The task may need human intervention or a different approach. Here's what was tried - please provide guidance.`
