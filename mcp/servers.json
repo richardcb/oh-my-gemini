@@ -11,12 +11,8 @@
       "trust": true
     },
     "exa": {
-      "command": "npx", 
-      "args": ["-y", "exa-mcp-server"],
-      "env": {
-        "EXA_API_KEY": "${EXA_API_KEY}"
-      },
-      "description": "Exa AI search - deep web research for documentation and examples",
+      "httpUrl": "https://mcp.exa.ai/mcp",
+      "description": "Exa web search - code examples, documentation, and research",
       "trust": true
     },
     "context7": {
@@ -40,11 +36,12 @@
       ]
     },
     "exa": {
-      "required_for": ["@researcher web search", "documentation lookup", "example finding"],
+      "required_for": ["@researcher web search", "code examples", "documentation lookup"],
       "steps": [
-        "1. Sign up at https://exa.ai",
-        "2. Get your API key from the dashboard",
-        "3. Add to your environment: export EXA_API_KEY=your_key"
+        "1. Works out of the box with free tier (rate limited)",
+        "2. For higher limits: sign up at https://exa.ai",
+        "3. Get API key from https://dashboard.exa.ai/api-keys",
+        "4. Update httpUrl to: https://mcp.exa.ai/mcp?exaApiKey=YOUR_KEY"
       ]
     },
     "context7": {

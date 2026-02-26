@@ -75,9 +75,9 @@ Best for complex features:
 3. Configure during `/omg:setup`
 
 ### Exa
-1. Sign up at https://exa.ai
-2. Get API key from dashboard
-3. Configure during `/omg:setup`
+1. Works out of the box (free tier, rate limited)
+2. For higher limits: sign up at https://exa.ai and get an API key
+3. Update `mcp/servers.json` httpUrl to include your key
 
 ### Context7
 1. Sign up at https://context7.com
