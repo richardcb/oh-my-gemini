@@ -2,23 +2,23 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**Hook-enforced multi-agent orchestration for Gemini CLI. Zero learning curve.**
+**Batteries-included workflow layer for Gemini CLI. Zero learning curve, maximum power.**
 
 *Inspired by [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode), reimagined for the Gemini ecosystem with deterministic workflow enforcement.*
 
 ---
 
-## What's New in v2.0
+## Why oh-my-gemini?
 
-oh-my-gemini v2.0 introduces **hook-based enforcement** - workflows that were previously enforced through prompts are now enforced through Gemini CLI's hook system, making behavior **deterministic rather than probabilistic**.
+oh-my-gemini uses **hook-based enforcement** — workflows are enforced through Gemini CLI's hook system, making behavior **deterministic rather than probabilistic**.
 
-| Feature | v1.0 (Prompts) | v2.0 (Hooks) |
-|---------|----------------|--------------|
+| Feature | Without OMG | With OMG |
+|---------|-------------|----------|
 | Tool sandboxing | "Don't use write tools" | `tool-filter` hook blocks them |
-| Security gates | "Avoid dangerous commands" | `before-tool` hook rejects them |
+| Security gates | "Avoid dangerous commands" | `before-tool` hook + policy engine reject them |
 | Auto-verification | "Remember to typecheck" | `after-tool` hook runs it |
-| Phase gates | "Wait for confirmation" | `phase-gate` hook enforces it |
-| Persistence | Skill with retry prompts | `ralph-retry` hook forces retries |
+| Phase gates | "Wait for confirmation" | `phase-gate` hook advises you |
+| Persistence | Manual retry prompts | `ralph-retry` hook forces retries |
 
 ---
 
@@ -30,29 +30,13 @@ oh-my-gemini v2.0 introduces **hook-based enforcement** - workflows that were pr
 gemini extensions install https://github.com/richardcb/oh-my-gemini
 ```
 
-**Step 2: Enable Experimental Features**
-
-Add to `~/.gemini/settings.json`:
-
-```json
-{
-  "experimental": {
-    "enableAgents": true,
-    "skills": true,
-    "hooks": true
-  }
-}
-```
-
-**Step 3: Verify Hooks**
+**Step 2: Set Up Your Project**
 
 ```
-/hooks panel
+/omg:setup
 ```
 
-You should see 7 hooks registered.
-
-**Step 4: Build Something**
+**Step 3: Build Something**
 
 ```
 /omg:autopilot build a REST API for managing tasks
@@ -90,15 +74,17 @@ oh-my-gemini uses Gemini CLI's hook system for deterministic behavior:
 Context-Driven Development with specs and plans:
 
 ```bash
-/omg:conductor-setup    # Initialize Conductor
+/omg:setup              # Initialize project (includes Conductor option)
 /omg:track "feature"    # Start a new feature track
+/omg:plan               # Plan with native plan mode
 /omg:implement          # Execute the plan
+/omg:review             # Review your changes
 /omg:status             # Check progress
 ```
 
 **Workflow:** PRD → Technical Plan → Implementation → Review
 
-Phase gates are enforced by the `phase-gate` hook (advisory or strict mode).
+Phase gates are enforced by the `phase-gate` hook (advisory mode).
 
 ### 🔄 Persistence Mode (Ralph)
 
@@ -122,8 +108,9 @@ The `ralph-retry` hook automatically:
 |---------|-------------|
 | `/omg:setup` | Initialize oh-my-gemini in your project |
 | `/omg:status` | Show current orchestration state |
+| `/omg:plan` | Activate plan mode with OMG context |
 | `/omg:autopilot` | Autonomous task execution |
-| `/omg:conductor-setup` | Initialize Conductor workflow |
+| `/omg:review` | Trigger structured code review |
 | `/omg:track` | Start a new feature track |
 | `/omg:implement` | Execute the current plan |
 
@@ -150,8 +137,7 @@ Customize hook behavior via `.gemini/omg-config.json`:
 ```json
 {
   "phaseGates": {
-    "enabled": true,
-    "strict": false
+    "enabled": true
   },
   "autoVerification": {
     "enabled": true,
@@ -180,7 +166,7 @@ oh-my-gemini/
 ├── commands/omg/            # Slash commands
 ├── .gemini/agents/          # Agent definitions (SubAgent format)
 ├── skills/                  # Skill definitions
-├── hooks/                   # Hook scripts (v2.0)
+├── hooks/                   # Hook scripts
 │   ├── hooks.json           # Hook definitions for Gemini CLI
 │   ├── lib/                 # Shared utilities
 │   ├── session-start.js
@@ -190,8 +176,9 @@ oh-my-gemini/
 │   ├── after-tool.js
 │   ├── phase-gate.js
 │   └── ralph-retry.js
-├── policies/                # TOML policy files (v2.0)
-│   └── omg-security.toml    # Static security rules
+├── policies/                # TOML policy files
+│   ├── omg-security.toml    # Static security rules
+│   └── omg-plan-mode.toml   # Plan mode restrictions
 ├── conductor/templates/     # Conductor workflow templates
 ├── mcp/                     # MCP server configurations
 ├── templates/               # Project templates
@@ -203,7 +190,7 @@ oh-my-gemini/
 
 ## Requirements
 
-- [Gemini CLI](https://geminicli.com) v0.26.0+ (hooks support)
+- [Gemini CLI](https://geminicli.com) v0.30.0+
 - Google AI API key or Vertex AI credentials
 - Node.js (for hook execution)
 
@@ -220,11 +207,9 @@ oh-my-gemini/
 
 ## Roadmap
 
-- [x] Phase 0: Project scaffolding
-- [x] Phase 1: Core hooks infrastructure
-- [x] Phase 2: Advanced hooks + agent simplification
-- [x] Phase 3: Documentation + polish
-- [ ] Phase 4: SubAgent integration (when available)
+- [x] v0.x: Core hooks infrastructure + agent simplification
+- [x] v1.0: Skills, policies, plan mode integration, v0.30.0 alignment
+- [ ] v2.0: Multi-agent orchestration (when subagents stabilize)
 
 ---
 
@@ -243,7 +228,7 @@ MIT
 ## Acknowledgments
 
 - [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) - Original inspiration
-- [Gemini CLI](https://geminicli.com) - Hook system that makes v2.0 possible
+- [Gemini CLI](https://geminicli.com) - Hook system that makes OMG possible
 
 ---
 

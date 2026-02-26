@@ -8,8 +8,8 @@
                         "name": "omg-session-start",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/session-start.js",
-                        "timeout": 15000,
-                        "description": "Load Conductor state and project context on startup"
+                        "timeout": 5000,
+                        "description": "Load Conductor state and project context on startup; concise output on resume"
                     }
                 ]
             }
@@ -37,7 +37,7 @@
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/before-tool.js",
                         "timeout": 15000,
-                        "description": "Security gates and git checkpoints before file/shell operations"
+                        "description": "User-custom command/path blocks and git checkpoints before file/shell operations"
                     }
                 ]
             }
@@ -64,8 +64,8 @@
                         "name": "omg-tool-filter",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/tool-filter.js",
-                        "timeout": 10000,
-                        "description": "Filter tools based on detected agent mode (researcher/architect/executor)"
+                        "timeout": 5000,
+                        "description": "Dynamic tool filtering based on detected agent mode (researcher/architect/executor)"
                     }
                 ]
             }
@@ -79,14 +79,14 @@
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/phase-gate.js",
                         "timeout": 10000,
-                        "description": "Conductor phase verification gates"
+                        "description": "Advisory Conductor phase progress indicator"
                     },
                     {
                         "name": "omg-ralph-retry",
                         "type": "command",
                         "command": "node ${extensionPath}/hooks/ralph-retry.js",
-                        "timeout": 10000,
-                        "description": "Persistence mode (Ralph) - automatic retry on failure"
+                        "timeout": 5000,
+                        "description": "Persistence mode (Ralph) - automatic retry on failure with circuit breaker awareness"
                     }
                 ]
             }

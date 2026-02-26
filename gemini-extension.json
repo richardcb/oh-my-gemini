@@ -1,19 +1,19 @@
 {
   "name": "oh-my-gemini",
-  "version": "2.0.1",
-  "description": "Hook-enforced multi-agent orchestration for Gemini CLI. Zero learning curve, maximum power.",
+  "version": "1.0.0",
+  "description": "Hook-enforced workflows for Gemini CLI. Install it, and your AI coding workflow instantly levels up.",
   "author": "richardcb",
   "repository": "https://github.com/richardcb/oh-my-gemini",
   "license": "MIT",
   "keywords": [
     "gemini-cli",
-    "multi-agent",
-    "orchestration",
-    "conductor",
     "hooks",
-    "ai-agents",
+    "skills",
+    "policies",
     "agentic-coding",
-    "docs-first"
+    "docs-first",
+    "workflows",
+    "developer-tools"
   ],
   "engines": {
     "gemini-cli": ">=0.30.0"
@@ -37,7 +37,7 @@
         "type": "command",
         "command": "node ${extensionPath}/hooks/session-start.js",
         "timeout": 5000,
-        "description": "Load Conductor state and project context on startup"
+        "description": "Load Conductor state and project context on startup; concise output on resume"
       }
     ],
     "BeforeAgent": [
@@ -55,7 +55,7 @@
         "type": "command",
         "command": "node ${extensionPath}/hooks/before-tool.js",
         "timeout": 15000,
-        "description": "Security gates and git checkpoints before file/shell operations",
+        "description": "User-custom command/path blocks and git checkpoints before file/shell operations",
         "matcher": "write_file|replace|edit_file|create_file|run_shell_command|shell"
       }
     ],
@@ -75,7 +75,7 @@
         "type": "command",
         "command": "node ${extensionPath}/hooks/tool-filter.js",
         "timeout": 5000,
-        "description": "Filter tools based on detected agent mode (researcher/architect/executor)"
+        "description": "Dynamic tool filtering based on detected agent mode (researcher/architect/executor)"
       }
     ],
     "AfterAgent": [
@@ -84,14 +84,14 @@
         "type": "command",
         "command": "node ${extensionPath}/hooks/phase-gate.js",
         "timeout": 10000,
-        "description": "Conductor phase verification gates"
+        "description": "Advisory Conductor phase progress indicator"
       },
       {
         "name": "omg-ralph-retry",
         "type": "command",
         "command": "node ${extensionPath}/hooks/ralph-retry.js",
         "timeout": 5000,
-        "description": "Persistence mode (Ralph) - automatic retry on failure"
+        "description": "Persistence mode (Ralph) - automatic retry on failure with circuit breaker awareness"
       }
     ]
   },
@@ -102,7 +102,7 @@
       "default": true
     },
     "phaseGates.strict": {
-      "description": "If true, phase gates block progression until user confirms",
+      "description": "[Deprecated] Phase gates are now advisory-only. This setting is ignored.",
       "type": "boolean",
       "default": false
     },
@@ -133,6 +133,11 @@
     },
     "ralph.enabled": {
       "description": "Enable persistence mode (ralph) for automatic retry",
+      "type": "boolean",
+      "default": true
+    },
+    "planMode.enabled": {
+      "description": "Enable plan mode integration (read-only tool restrictions via omg-plan-mode.toml)",
       "type": "boolean",
       "default": true
     },

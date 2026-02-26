@@ -2,7 +2,7 @@
 name: implementation
 description: |
   Execute a technical plan task by task, following the phased structure.
-  v2.0: Hooks now handle verification automatically - no manual reminders needed.
+  v1.0: Hooks handle verification automatically - no manual reminders needed.
   Use when a technical plan exists and it's time to write code.
 ---
 
@@ -12,9 +12,15 @@ description: |
 
 Execute a technical plan systematically, following established phases, completing tasks in order.
 
-## v2.0 Changes
+## Activation Triggers
 
-**Hooks now handle verification automatically:**
+- User says "implement", "build", "execute the plan", or "start coding"
+- A technical plan exists and it is time to write code
+- User runs `/omg:implement`
+
+## Hook Integration
+
+**Hooks handle verification automatically:**
 - `AfterTool` hook runs typecheck/lint after code changes
 - `phase-gate` hook detects phase completion
 - `ralph-retry` hook handles persistence mode
@@ -189,6 +195,11 @@ If the user activates Ralph mode (includes "ralph" or "persistent" in prompt):
 - The `ralph-retry` hook activates
 - On failure, it suggests alternative approaches
 - Keeps retrying up to configured max
+
+## Plan Mode Compatibility
+
+When plan mode is active, use it to review and decompose complex tasks before
+implementing. Exit plan mode before making code changes.
 
 ## Guidelines
 

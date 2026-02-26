@@ -1,0 +1,12 @@
+{
+  "name": "oh-my-gemini",
+  "version": "1.0.0",
+  "description": "Multi-agent orchestration extension for Gemini CLI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/richardcb/oh-my-gemini.git"
+  },
+  "keywords": ["gemini-cli", "gemini", "orchestration", "multi-agent"],
+  "author": "richardcb",
+  "license": "MIT"
+}

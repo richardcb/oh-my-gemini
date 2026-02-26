@@ -3,7 +3,7 @@ name: conductor-setup
 description: |
   Initialize Conductor workflow in a project. Bundles all necessary templates
   for product context, tech stack, workflow, and tracks.
-  v2.0: Hooks now handle phase enforcement - setup focuses on file creation.
+  v1.0: Hooks handle phase enforcement - setup focuses on file creation.
 ---
 
 # Conductor Setup Skill
@@ -12,7 +12,13 @@ description: |
 
 Initialize a complete Conductor workflow in the user's project with all necessary configuration files.
 
-## v2.0 Changes
+## Activation Triggers
+
+- User runs `/omg:setup` or `/omg:conductor-setup`
+- User asks to "set up Conductor", "initialize workflow", or "enable planning"
+- Project has no `conductor/` directory and user wants structured development
+
+## Hook Integration
 
 Conductor phase enforcement is now handled by the `phase-gate` hook:
 - **Advisory mode (default):** Shows message at phase boundaries
@@ -105,7 +111,7 @@ Create files in `conductor/`:
 
 1. **product.md** - Customize with user's answers
 2. **tech-stack.md** - Customize with detected/confirmed stack
-3. **workflow.md** - Use template (updated for v2.0 hooks)
+3. **workflow.md** - Use template (with hook-enforced workflow)
 4. **tracks.md** - Initialize empty
 5. **code_styleguides/general.md** - Use as-is
 

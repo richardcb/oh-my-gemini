@@ -15,7 +15,7 @@ const platform = require('./platform');
 
 // Default configuration
 const DEFAULT_CONFIG = {
-  version: '2.0.1',
+  version: '1.0.0',
   
   phaseGates: {
     enabled: true,
@@ -109,6 +109,7 @@ const DEFAULT_CONFIG = {
   },
   
   contextInjection: {
+    enabled: true,
     conductorState: true,
     gitHistory: {
       enabled: true,

@@ -81,34 +81,43 @@ Recent Activity
    Track status:  [From metadata.json]
 ```
 
-### 5. Quick Actions
+### 5. Plan Mode State
+Indicate whether plan mode is available/active:
+```
+Plan Mode
+   Status:    Available (use /omg:plan to enter)
+```
+
+### 6. Quick Actions
 Suggest relevant next steps based on current state:
 
 **If no GEMINI.md:**
 ```
-🚀 Quick Actions
+Quick Actions
    → Run /omg:setup to initialize oh-my-gemini
 ```
 
 **If no Conductor:**
 ```
-🚀 Quick Actions
-   → Run /omg:conductor-setup to enable planning workflow
+Quick Actions
+   → Run /omg:setup to enable Conductor workflow
    → Or use /omg:autopilot "task" for quick execution
 ```
 
 **If setup but no tracks:**
 ```
-🚀 Quick Actions
+Quick Actions
+   → Run /omg:plan to enter plan mode and design your approach
    → Run /omg:track "feature name" to start a new feature
    → Run /omg:autopilot "task" for quick one-off tasks
 ```
 
 **If track in progress:**
 ```
-🚀 Quick Actions
+Quick Actions
    → Run /omg:implement to continue implementation
-   → Run /omg:status to refresh this view
+   → Run /omg:review to review current changes
+   → Run /omg:plan to enter plan mode for complex decisions
 ```
 
 Keep the report concise - this is a quick overview, not a deep analysis.

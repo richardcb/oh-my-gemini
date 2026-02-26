@@ -12,12 +12,17 @@ description: |
 
 To guide an AI assistant in creating a single, comprehensive Product Requirements Document (PRD) in Markdown format. This document will serve as both a high-level brief for project context and a detailed, actionable guide for implementation.
 
+## Activation Triggers
+
+- User asks to "create a PRD", "write requirements", or "define a feature"
+- Starting a new feature that needs requirements definition
+- User says "docs first" or "requirements first"
+
 ## Bundled Resources
 
 This skill includes:
 - `scripts/generate-prd.sh` - Shell script to create PRD file with proper naming
 - `templates/prd-template.md` - Standard PRD template
-- `references/examples/` - Example PRDs for reference
 
 ## Process
 

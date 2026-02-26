@@ -12,6 +12,12 @@ description: |
 
 Create complete Conductor tracks with properly structured spec, plan, and metadata files.
 
+## Activation Triggers
+
+- User runs `/omg:track` with a feature name
+- User asks to "start a new track", "create a feature track", or "plan a feature"
+- User wants to begin a new Conductor workflow for a feature
+
 ## Bundled Resources
 
 This skill includes templates that the agent can read and use:

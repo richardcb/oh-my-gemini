@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 /**
- * oh-my-gemini Phase Gate Hook
+ * oh-my-gemini Phase Gate Hook (Advisory Only)
  *
  * Event: AfterAgent
  * Fires: After every agent response
  *
  * Purpose:
- * - Parse active track's plan.md
- * - Detect if phase boundary was crossed
- * - Force verification pause at phase gates
- * - Reject response if agent skips verification
+ * - Parse active track's plan.md and detect current phase
+ * - Emit an advisory systemMessage with phase progress
+ * - Never blocks or denies responses (enforcement is handled by
+ *   Gemini CLI's native plan-mode policies in v0.30.0+)
  *
  * Input: { prompt, prompt_response, stop_hook_active, session_id, cwd, ... }
- * Output: { decision?: "deny", reason? }
- * 
+ * Output: { systemMessage? }
+ *
  * Cross-platform compatible (Windows/macOS/Linux)
  */
 
@@ -30,37 +30,64 @@ const {
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
 /**
- * Parse phases from plan content
+ * Parse phases from plan content.
+ * Only matches headers that explicitly contain "Phase" (e.g., "## Phase 1: Data Layer")
+ * or match one of the configured phase names. Generic headers like "## Notes" are ignored.
  * @param {string} planContent - Plan markdown content
- * @returns {object[]} Array of phase objects with name, tasks, completed
+ * @param {string[]} configuredPhases - Phase names from config (e.g., ['data-layer', 'backend', ...])
+ * @returns {object[]} Array of phase objects with name, tasks, completed, total
  */
-function parsePhases(planContent) {
+function parsePhases(planContent, configuredPhases = []) {
   if (!planContent) return [];
-  
+
   const phases = [];
   const lines = planContent.split('\n');
-  
+
+  // Build a set of lowercase configured phase names for fast lookup
+  const knownPhases = new Set(configuredPhases.map(p => p.toLowerCase()));
+
   let currentPhase = null;
-  
+
   for (const line of lines) {
-    // Match phase headers: ## Phase 1: Data Layer or ### Data Layer
-    const phaseMatch = line.match(/^#{2,3}\s*(?:Phase\s*\d+[:\s]*)?(.+)/i);
-    
-    if (phaseMatch) {
-      // Save previous phase
+    // Primary: match explicit "Phase N:" headers — e.g., "## Phase 1: Data Layer"
+    const explicitMatch = line.match(/^#{2,3}\s*Phase\s*\d+[:\s]+(.+)/i);
+    if (explicitMatch) {
       if (currentPhase) {
         phases.push(currentPhase);
       }
-      
       currentPhase = {
-        name: phaseMatch[1].trim(),
+        name: explicitMatch[1].trim(),
         tasks: [],
         completed: 0,
         total: 0
       };
       continue;
     }
-    
+
+    // Fallback: match H2/H3 headers whose text matches a configured phase name
+    if (knownPhases.size > 0) {
+      const headerMatch = line.match(/^#{2,3}\s+(.+)/);
+      if (headerMatch) {
+        const headerText = headerMatch[1].trim().toLowerCase();
+        // Check if this header matches any configured phase name (case-insensitive, partial)
+        const isKnown = [...knownPhases].some(p =>
+          headerText.includes(p) || p.includes(headerText)
+        );
+        if (isKnown) {
+          if (currentPhase) {
+            phases.push(currentPhase);
+          }
+          currentPhase = {
+            name: headerMatch[1].trim(),
+            tasks: [],
+            completed: 0,
+            total: 0
+          };
+          continue;
+        }
+      }
+    }
+
     // Match tasks within phase
     if (currentPhase) {
       const taskMatch = line.match(/^[\s]*-\s*\[([ xX])\]\s*(.+)$/);
@@ -77,90 +104,31 @@ function parsePhases(planContent) {
       }
     }
   }
-  
+
   // Don't forget the last phase
   if (currentPhase) {
     phases.push(currentPhase);
   }
-  
+
   return phases;
 }
 
 /**
- * Find the current phase (first incomplete phase)
+ * Find the index and data of the current phase (first incomplete phase).
  * @param {object[]} phases - Array of phase objects
- * @returns {object|null} Current phase or null
+ * @returns {{ index: number, phase: object } | null}
  */
 function findCurrentPhase(phases) {
-  for (const phase of phases) {
-    if (phase.completed < phase.total) {
-      return phase;
+  for (let i = 0; i < phases.length; i++) {
+    if (phases[i].completed < phases[i].total) {
+      return { index: i, phase: phases[i] };
     }
   }
-  return phases[phases.length - 1] || null;
-}
-
-/**
- * Check if a verification task exists for a phase
- * @param {object} phase - Phase object
- * @returns {boolean} True if phase has verification task
- */
-function hasVerificationTask(phase) {
-  if (!phase || !phase.tasks) return false;
-  
-  return phase.tasks.some(task => 
-    task.text.toLowerCase().includes('verification') ||
-    task.text.toLowerCase().includes('conductor') ||
-    task.text.toLowerCase().includes('manual verification') ||
-    task.text.toLowerCase().includes('checkpoint')
-  );
-}
-
-/**
- * Check if phase verification is complete
- * @param {object} phase - Phase object
- * @returns {boolean} True if verification task is marked complete
- */
-function isVerificationComplete(phase) {
-  if (!phase || !phase.tasks) return true;
-  
-  const verificationTask = phase.tasks.find(task => 
-    task.text.toLowerCase().includes('verification') ||
-    task.text.toLowerCase().includes('conductor') ||
-    task.text.toLowerCase().includes('manual verification') ||
-    task.text.toLowerCase().includes('checkpoint')
-  );
-  
-  return verificationTask ? verificationTask.completed : true;
-}
-
-/**
- * Detect whether ask_user is available in the current hook input.
- * Gemini CLI v0.30.0+ may expose available tools via `available_tools`
- * or `tool_declarations` fields on the hook input object.
- * @param {object} input - Raw hook input
- * @returns {boolean} True if ask_user tool is listed
- */
-function isAskUserAvailable(input) {
-  // Check available_tools array (preferred field name)
-  if (Array.isArray(input.available_tools)) {
-    return input.available_tools.some(t => {
-      if (typeof t === 'string') return t === 'ask_user';
-      if (t && typeof t === 'object') return t.name === 'ask_user';
-      return false;
-    });
+  // All complete -- return the last phase
+  if (phases.length > 0) {
+    return { index: phases.length - 1, phase: phases[phases.length - 1] };
   }
-
-  // Check tool_declarations array (alternate field name)
-  if (Array.isArray(input.tool_declarations)) {
-    return input.tool_declarations.some(t => {
-      if (typeof t === 'string') return t === 'ask_user';
-      if (t && typeof t === 'object') return t.name === 'ask_user';
-      return false;
-    });
-  }
-
-  return false;
+  return null;
 }
 
 /**
@@ -169,14 +137,10 @@ function isAskUserAvailable(input) {
 async function main() {
   try {
     const input = await readInput();
-    const promptResponse = input.prompt_response || '';
     const cwd = input.cwd || process.cwd();
 
     log('PhaseGate hook fired');
     debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
-
-    // Detect ask_user availability (v0.30.0 alignment)
-    const askUserAvailable = isAskUserAvailable(input);
 
     // Find project root
     const projectRoot = findProjectRoot(cwd);
@@ -191,12 +155,17 @@ async function main() {
       return;
     }
 
-    const phaseGateConfig = getConfigValue(config, 'phaseGates', {});
-    const strictMode = phaseGateConfig.strict || false;
-
     // Load plan state: session-specific first, then global Conductor
     const sessionId = input.session_id || null;
-    const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+    let conductor;
+    try {
+      conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+    } catch (err) {
+      // Corrupt/missing state -- skip silently
+      log(`Conductor state unreadable, skipping: ${err.message}`);
+      writeOutput({});
+      return;
+    }
 
     if (!conductor || !conductor.active || !conductor.plan) {
       log('No active Conductor track');
@@ -204,8 +173,9 @@ async function main() {
       return;
     }
 
-    // Parse phases from plan
-    const phases = parsePhases(conductor.plan);
+    // Parse phases from plan, using configured phase names for matching
+    const configuredPhases = getConfigValue(config, 'phaseGates.phases', []);
+    const phases = parsePhases(conductor.plan, configuredPhases);
 
     if (phases.length === 0) {
       log('No phases found in plan');
@@ -214,54 +184,26 @@ async function main() {
     }
 
     // Find current phase
-    const currentPhase = findCurrentPhase(phases);
+    const current = findCurrentPhase(phases);
 
-    if (!currentPhase) {
-      log('All phases complete');
+    if (!current) {
       writeOutput({});
       return;
     }
 
-    log(`Current phase: ${currentPhase.name} (${currentPhase.completed}/${currentPhase.total})`);
+    const { index, phase } = current;
+    const remaining = phase.total - phase.completed;
+    const phaseNumber = index + 1;
+    const totalPhases = phases.length;
 
-    // Check if we're at a phase boundary
-    const allTasksComplete = currentPhase.tasks.every(t =>
-      t.completed ||
-      t.text.toLowerCase().includes('verification') ||
-      t.text.toLowerCase().includes('conductor')
-    );
+    log(`Current phase: ${phase.name} (${phase.completed}/${phase.total})`);
 
-    if (allTasksComplete && !isVerificationComplete(currentPhase)) {
-      // Three-tier gate logic: ask_user > strict deny > advisory systemMessage
+    // Advisory-only output
+    const advisory = `[omg:phase-gate] Phase ${phaseNumber}/${totalPhases}: ${phase.name} — ${remaining} task${remaining !== 1 ? 's' : ''} remaining`;
 
-      if (askUserAvailable) {
-        // Tier 1: native ask_user verification (v0.30.0+)
-        log(`[omg:phase-gate] ask_user available — using native verification`);
-        const question = `Phase '${currentPhase.name}' is complete. Have you verified all tasks? (yes/no)`;
-        writeOutput({
-          systemMessage: `Use the ask_user tool to verify the phase gate before continuing. Call ask_user with: { "question": ${JSON.stringify(question)}, "question_type": "yes_no" }`
-        });
-      } else if (strictMode) {
-        // Tier 2: strict deny (blocks the response)
-        log(`[omg:phase-gate] ask_user not available — using prompt-based verification`);
-        log(`BLOCKING: Phase "${currentPhase.name}" needs verification`);
-        writeOutput({
-          decision: 'deny',
-          reason: `Phase Gate: "${currentPhase.name}" tasks complete. Please verify and mark the verification task as complete before proceeding.`
-        });
-      } else {
-        // Tier 3: advisory systemMessage
-        log(`[omg:phase-gate] ask_user not available — using prompt-based verification`);
-        log(`ADVISORY: Phase "${currentPhase.name}" needs verification`);
-        writeOutput({
-          systemMessage: `Phase Gate (Advisory): "${currentPhase.name}" tasks appear complete. Consider verifying before proceeding to the next phase.`
-        });
-      }
-      return;
-    }
-
-    // No gate triggered
-    writeOutput({});
+    writeOutput({
+      systemMessage: advisory
+    });
   } catch (err) {
     log(`PhaseGate hook error: ${err.message}`);
     // Don't fail the hook

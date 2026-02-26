@@ -81,6 +81,66 @@ priority = 800
 deny_message = "Blocked: Piping remote content directly to shell is risky. Download first, review, then execute."
 
 # =============================================================================
+# WINDOWS-SPECIFIC DANGEROUS COMMANDS - DENY
+# =============================================================================
+
+# Block format drive commands (Windows)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^format\\s+[a-z]:"
+decision = "deny"
+priority = 950
+deny_message = "Blocked: Drive formatting is not allowed."
+
+# Block recursive directory delete (Windows rd /s /q)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^(rd|rmdir)\\s+/s\\s+/q\\s+[a-z]:\\\\"
+decision = "deny"
+priority = 900
+deny_message = "Blocked: Recursive directory delete of drive root is not allowed."
+
+# Block force delete of system files (Windows del /f /q)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^del\\s+/f\\s+.*([a-z]:\\\\windows|%systemroot%|%programfiles%)"
+decision = "deny"
+priority = 900
+deny_message = "Blocked: Deleting system files is not allowed."
+
+# Block registry deletion (Windows)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^reg\\s+delete\\s+hk"
+decision = "deny"
+priority = 900
+deny_message = "Blocked: Registry deletion is not allowed."
+
+# Block bcdedit (boot configuration, Windows)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^bcdedit"
+decision = "deny"
+priority = 900
+deny_message = "Blocked: Boot configuration changes are not allowed."
+
+# Block diskpart (disk partitioning, Windows)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^diskpart"
+decision = "deny"
+priority = 900
+deny_message = "Blocked: Disk partitioning is not allowed."
+
+# Block forced shutdown/restart (Windows)
+[[rule]]
+toolName = "run_shell_command"
+commandRegex = "(?i)^shutdown\\s+/[rs]"
+decision = "deny"
+priority = 800
+deny_message = "Blocked: System shutdown/restart commands are not allowed."
+
+# =============================================================================
 # PROTECTED PATHS - DENY WRITES
 # =============================================================================
 
@@ -108,6 +168,14 @@ decision = "deny"
 priority = 800
 deny_message = "Protected: Cannot write to system directories."
 
+# Block writes to Windows system directories
+[[rule]]
+toolName = ["write_file", "replace", "edit_file", "create_file"]
+commandRegex = "(?i)(C:\\\\Windows|C:\\\\Program Files|%SystemRoot%|%ProgramFiles%)"
+decision = "deny"
+priority = 800
+deny_message = "Protected: Cannot write to Windows system directories."
+
 # =============================================================================
 # SAFE READ OPERATIONS - ALLOW
 # =============================================================================
@@ -127,3 +195,26 @@ toolName = "run_shell_command"
 commandRegex = "^git\\s+(status|log|diff|branch|show)\\b"
 decision = "allow"
 priority = 200
+
+# =============================================================================
+# AGENT MODE RESTRICTIONS - MIGRATION NOTE
+# =============================================================================
+#
+# The following tool restrictions are enforced DYNAMICALLY by hooks/tool-filter.js
+# because they depend on runtime prompt content (e.g., @researcher, @architect keywords).
+# The Gemini CLI v0.30.0 policy engine does not support conditional rules based on
+# prompt content, so these cannot be expressed as static TOML rules.
+#
+# Researcher mode (activated by @researcher keyword):
+#   Allowed: google_web_search, web_fetch, read_file, list_dir, glob
+#   Denied:  write_file, replace, edit_file, create_file, run_shell_command
+#
+# Architect mode (activated by @architect keyword):
+#   Allowed: read_file, list_dir, glob, search_file_content
+#   Denied:  write_file, replace, edit_file, create_file, run_shell_command
+#
+# Executor mode (default / activated by @executor keyword):
+#   Allowed: all tools (with security rules above still enforced)
+#
+# TODO: If the policy engine adds conditional/context-aware rules in a future
+# Gemini CLI release, migrate these restrictions from tool-filter.js to TOML.

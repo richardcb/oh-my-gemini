@@ -1,108 +1,17 @@
-# /omg:conductor-setup - Initialize Conductor workflow in your project
+# /omg:conductor-setup - Redirects to /omg:setup
 
-description = "Initialize the Conductor workflow for Context-Driven Development."
+description = "Initialize the Conductor workflow. Redirects to /omg:setup which handles full project initialization including Conductor."
 
 prompt = """
-You are setting up Conductor mode for Context-Driven Development.
+The `/omg:conductor-setup` command has been consolidated into `/omg:setup`.
 
-## IMPORTANT: Activate the conductor-setup skill first
+Please run `/omg:setup` instead. It handles full project initialization including:
+- GEMINI.md creation
+- Conductor workflow setup (product.md, tech-stack.md, workflow.md, tracks.md)
+- Hook configuration overview
 
-Before proceeding, you MUST activate the `conductor-setup` skill using the activate_skill tool.
-This skill contains all the templates needed to properly initialize Conductor:
-- templates/product.md
-- templates/tech-stack.md
-- templates/workflow.md
-- templates/tracks.md
-- templates/code_styleguides/general.md
-
-Once activated, you will have access to read these templates and use them to create the conductor directory structure.
-
-## Current Project State
-
-Check what already exists:
-```
-!{ls -la conductor/ 2>/dev/null || echo "NOT_FOUND: No conductor directory"}
-```
-
-```
-!{cat package.json 2>/dev/null | head -30 || echo "NOT_FOUND: No package.json"}
-```
-
-```
-!{ls -la 2>/dev/null | head -20}
-```
-
-## Setup Flow
-
-### Step 1: Detect Existing Setup
-If conductor/ exists, ask user:
-- [S]kip - Keep existing
-- [M]erge - Add missing files only
-- [R]eplace - Overwrite all
-
-### Step 2: Create Directory Structure
-```bash
-mkdir -p conductor/tracks
-mkdir -p conductor/code_styleguides
-```
-
-### Step 3: Gather Product Context
-Ask the user:
-1. "What is this project? (one sentence)"
-2. "Who are the main users?"
-3. "What problem does it solve?"
-
-### Step 4: Detect Tech Stack
-Based on project files detected above, identify:
-- Language/framework
-- Package manager
-- Testing framework
-- Linting tools
-
-Ask user to confirm.
-
-### Step 5: Write Files
-After activating the skill and reading the templates:
-1. Read each template from the skill's templates/ directory
-2. Customize with user's answers and detected info
-3. Write to conductor/ directory
-
-Files to create:
-- `conductor/product.md` - Customized with user input
-- `conductor/tech-stack.md` - Customized with detected/confirmed stack
-- `conductor/workflow.md` - From template (customize if requested)
-- `conductor/tracks.md` - Initialize empty from template
-- `conductor/code_styleguides/general.md` - From template
-
-### Step 6: Verify
-```
-!{ls -la conductor/ 2>/dev/null}
-```
-
-### Step 7: Report Success
-```
-✅ Conductor initialized!
-
-Created:
-- conductor/product.md
-- conductor/tech-stack.md
-- conductor/workflow.md
-- conductor/tracks.md
-- conductor/code_styleguides/general.md
-
-Next steps:
-1. Review and refine the generated files
-2. Run /omg:track "your first feature" to start planning
-3. Run /omg:status to see your project state
-
-Tip: The conductor/ files are meant to be edited! Customize them.
-```
-
-## Important
-- ALWAYS activate the skill first to get the templates
-- Read templates from the skill directory, don't hallucinate them
-- Customize templates with actual user input and detected values
-- Actually create the files, don't just describe them
+If you only need Conductor and already have the rest set up, `/omg:setup` will
+detect existing configuration and skip what's already done.
 """
 
 [tool_config]

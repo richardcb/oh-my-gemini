@@ -39,7 +39,7 @@ You are executing a Conductor track's implementation plan.
 
 ## Hooks Working For You
 
-oh-my-gemini v2.0 hooks handle verification automatically:
+oh-my-gemini hooks handle verification automatically:
 
 | Hook | What It Does |
 |------|-------------|

@@ -33,6 +33,11 @@ const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config')
 // Max age for stale session entries (24 hours in ms)
 const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
+// Gemini CLI v0.30.0 circuit breaker defaults.
+// If the CLI exposes these values via hook input, we use those instead.
+const DEFAULT_MAX_TURNS = 15;
+const DEFAULT_MAX_TIME_MINUTES = 5;
+
 /**
  * Get the path to the ralph state file
  * @param {string} projectRoot - Project root directory
@@ -209,6 +214,56 @@ function generateSuggestion(attemptNumber) {
 }
 
 /**
+ * Extract circuit breaker budget from hook input.
+ * Gemini CLI v0.30.0+ may provide turn_count, max_turns, session_start_time,
+ * or max_time_minutes. Falls back to hardcoded defaults.
+ * @param {object} input - Raw hook input
+ * @returns {{ turnsUsed: number, maxTurns: number, maxTimeMinutes: number, sessionStartTime: number|null }}
+ */
+function getCircuitBreakerBudget(input) {
+  const turnsUsed = input.turn_count || input.turns_used || 0;
+  const maxTurns = input.max_turns || DEFAULT_MAX_TURNS;
+  const maxTimeMinutes = input.max_time_minutes || DEFAULT_MAX_TIME_MINUTES;
+  const sessionStartTime = input.session_start_time
+    ? new Date(input.session_start_time).getTime()
+    : null;
+
+  return { turnsUsed, maxTurns, maxTimeMinutes, sessionStartTime };
+}
+
+/**
+ * Check if the circuit breaker would be exceeded by another retry.
+ * @param {object} budget - Circuit breaker budget from getCircuitBreakerBudget
+ * @returns {{ exceeded: boolean, reason: string|null, turnsRemaining: number }}
+ */
+function checkCircuitBreaker(budget) {
+  const turnsRemaining = budget.maxTurns - budget.turnsUsed;
+
+  // Check turn limit (need at least 1 turn remaining for a retry to be useful)
+  if (turnsRemaining <= 1) {
+    return {
+      exceeded: true,
+      reason: `Circuit breaker: ${budget.turnsUsed}/${budget.maxTurns} turns used`,
+      turnsRemaining: Math.max(0, turnsRemaining)
+    };
+  }
+
+  // Check time limit if session start time is available
+  if (budget.sessionStartTime) {
+    const elapsedMinutes = (Date.now() - budget.sessionStartTime) / 60000;
+    if (elapsedMinutes >= budget.maxTimeMinutes) {
+      return {
+        exceeded: true,
+        reason: `Circuit breaker: ${Math.round(elapsedMinutes)}min elapsed (limit: ${budget.maxTimeMinutes}min)`,
+        turnsRemaining: Math.max(0, turnsRemaining)
+      };
+    }
+  }
+
+  return { exceeded: false, reason: null, turnsRemaining: Math.max(0, turnsRemaining) };
+}
+
+/**
  * Check if ralph mode is active
  * @param {string} prompt - User prompt
  * @param {object} context - Additional context
@@ -283,6 +338,19 @@ async function main() {
       return;
     }
 
+    // Check circuit breaker budget before attempting retry
+    const budget = getCircuitBreakerBudget(input);
+    const cbCheck = checkCircuitBreaker(budget);
+
+    if (cbCheck.exceeded) {
+      log(`Circuit breaker exceeded: ${cbCheck.reason}`);
+      resetAttempts(sessionId, projectRoot);
+      writeOutput({
+        systemMessage: `Ralph Mode: Stopping retries - ${cbCheck.reason}. The task may need human intervention.`
+      });
+      return;
+    }
+
     // Increment attempt count
     const attempts = incrementAttempts(sessionId, projectRoot);
     log(`Failure detected. Attempt ${attempts}/${maxRetries}`);
@@ -291,19 +359,20 @@ async function main() {
       // Max retries reached - escalate to user
       log('Max retries reached, escalating to user');
       resetAttempts(sessionId, projectRoot);
-      
+
       writeOutput({
-        systemMessage: `🛑 Ralph Mode: Reached ${maxRetries} attempts. The task may need human intervention or a different approach. Here's what was tried - please provide guidance.`
+        systemMessage: `Ralph Mode: Reached ${maxRetries} attempts. The task may need human intervention or a different approach. Here's what was tried - please provide guidance.`
       });
       return;
     }
-    
-    // Generate retry prompt
+
+    // Generate retry prompt with remaining budget indicator
     const suggestion = generateSuggestion(attempts);
-    const retryReason = `🔄 Ralph Mode (Attempt ${attempts}/${maxRetries}): Don't give up! ${suggestion} Please try again with a different approach.`;
-    
-    log(`Forcing retry: ${suggestion}`);
-    
+    const budgetNote = `${cbCheck.turnsRemaining} turn${cbCheck.turnsRemaining !== 1 ? 's' : ''} remaining before circuit breaker`;
+    const retryReason = `Ralph Mode (Attempt ${attempts}/${maxRetries}): Retrying — ${budgetNote}. ${suggestion} Please try again with a different approach.`;
+
+    log(`Forcing retry: ${suggestion} (${budgetNote})`);
+
     writeOutput({
       decision: 'deny',
       reason: retryReason

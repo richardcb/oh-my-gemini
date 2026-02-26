@@ -32,10 +32,10 @@ You are the oh-my-gemini setup wizard. Your job is to configure the project for 
 !{echo "=== Existing Hooks ===" && ls .gemini/hooks/ 2>/dev/null || echo "NO_PROJECT_HOOKS"}
 ```
 
-## What oh-my-gemini v2.0 Provides
+## What oh-my-gemini v1.0 Provides
 
-### 🪝 Hooks (NEW in v2.0)
-oh-my-gemini now uses Gemini CLI's hook system for **deterministic behavior**:
+### Hooks
+oh-my-gemini uses Gemini CLI's hook system for **deterministic behavior**:
 
 | Hook | Purpose |
 |------|---------|
@@ -44,20 +44,14 @@ oh-my-gemini now uses Gemini CLI's hook system for **deterministic behavior**:
 | **BeforeTool** | Security gates, blocks dangerous ops, git checkpoints |
 | **AfterTool** | Auto-verification (typecheck, lint after code changes) |
 
-### 🤖 Specialized Agents
-- **Orchestrator**: Task coordination and routing
-- **Researcher**: Web search and documentation lookup
-- **Architect**: System design and debugging
-- **Executor**: Focused code implementation
-
-### 📋 Conductor Workflow (Optional)
+### Conductor Workflow (Optional)
 Context-Driven Development with specs and plans:
 - PRD → Technical Plan → Implementation → Review
 - Phase verification gates
 - Progress tracking
 
-### 🛠️ Skills Library
-PRD creation, technical planning, code review, documentation, and more.
+### Skills Library
+PRD creation, technical planning, code review, quick-fix, refactor, documentation, and more.
 
 ## Setup Flow
 
@@ -98,7 +92,7 @@ If GEMINI.md doesn't exist, create it with detected project info:
 
 ## oh-my-gemini Configuration
 
-### Hooks (v2.0)
+### Hooks
 oh-my-gemini uses hooks for deterministic behavior:
 - ✅ Security gates (blocks dangerous commands)
 - ✅ Auto-verification (typecheck/lint after changes)
@@ -117,18 +111,21 @@ Create `.gemini/omg-config.json` to customize:
 
 ## Commands
 - `/omg:status` - Show current state
+- `/omg:plan` - Enter plan mode with OMG context
+- `/omg:review` - Code review of current changes
 - `/omg:autopilot` - Autonomous task execution
 - `/omg:track` - Start a Conductor track
 - `/omg:implement` - Execute current plan
 ```
 
 ### Step 4: Set Up Conductor (if selected)
-If user selected Conductor mode:
-1. Create `conductor/` directory structure
-2. Create product.md, tech-stack.md, workflow.md, tracks.md
-3. Create code_styleguides/general.md
-
-Use the `conductor-setup` skill for this.
+If user selected Conductor mode, create the Conductor directory structure directly:
+1. Create `conductor/` directory with subdirectories `tracks/` and `code_styleguides/`
+2. Create product.md (customized with user's answers)
+3. Create tech-stack.md (customized with detected/confirmed stack)
+4. Create workflow.md (hook-enforced workflow template)
+5. Create tracks.md (empty track listing)
+6. Create code_styleguides/general.md
 
 ### Step 5: Hook Configuration Info
 Explain that hooks are automatically registered via the extension:
@@ -136,7 +133,7 @@ Explain that hooks are automatically registered via the extension:
 ```
 ## 🪝 Hooks Configuration
 
-oh-my-gemini v2.0 hooks are automatically active when the extension is installed.
+oh-my-gemini hooks are automatically active when the extension is installed.
 
 **Active Hooks:**
 ✅ SessionStart - Loads Conductor state on startup
@@ -177,7 +174,7 @@ After creating files, verify they exist:
 
 Then print:
 ```
-✅ oh-my-gemini v2.0 setup complete!
+oh-my-gemini v1.0 setup complete!
 
 Created:
 - GEMINI.md (project context)

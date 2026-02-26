@@ -66,7 +66,7 @@ Full tools available (with BeforeTool security gates).
 
 ## Hooks Working For You
 
-oh-my-gemini v2.0 handles enforcement automatically:
+oh-my-gemini handles enforcement automatically:
 
 | Hook | What It Does |
 |------|-------------|
@@ -113,7 +113,7 @@ If errors are found, fix them before proceeding.
 
 If user includes these, adjust behavior:
 - **ralph** / **persistent**: Don't give up, the ralph-retry hook will force alternatives on failure
-- **plan** / **design**: Focus on planning in @architect mode before implementation
+- **plan** / **design**: Use native plan mode for decomposition before implementation (run /omg:plan)
 - **quick** / **fast**: Skip extensive planning, move fast
 
 ## Guidelines

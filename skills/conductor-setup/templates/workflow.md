@@ -2,9 +2,9 @@
 
 We follow a strict, linear "Docs-First" methodology. **Do not write code** until a PRD and Technical Plan have been generated and approved.
 
-## v2.0: Hook-Enforced Workflow
+## Hook-Enforced Workflow
 
-oh-my-gemini v2.0 uses hooks to enforce workflow rules automatically:
+oh-my-gemini uses hooks to enforce workflow rules automatically:
 
 | Hook | What It Enforces |
 |------|------------------|

@@ -22,18 +22,7 @@ cd oh-my-gemini
 gemini extensions install .
 ```
 
-3. Enable experimental features in `~/.gemini/settings.json`:
-```json
-{
-  "experimental": {
-    "enableAgents": true,
-    "skills": true,
-    "hooks": true
-  }
-}
-```
-
-4. Test your changes:
+3. Test your changes:
 ```bash
 # In any project directory
 /omg:status

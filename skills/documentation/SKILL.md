@@ -12,6 +12,12 @@ description: |
 
 Create comprehensive, practical documentation for newly implemented features. Help users understand what the feature does and help developers maintain and extend it.
 
+## Activation Triggers
+
+- User asks to "document", "write docs", or "add documentation"
+- After completing feature implementation
+- User asks to update README or GEMINI.md
+
 ## Core Principle
 
 **The code is the source of truth.** Use PRD and plan for context only—document what was actually built, not what was planned.

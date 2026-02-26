@@ -12,11 +12,11 @@ description: |
 
 Create a detailed, step-by-step technical plan in Markdown format, based on an existing Product Requirements Document (PRD). The plan must be a clear, actionable guide for implementation.
 
-## Bundled Resources
+## Activation Triggers
 
-- `scripts/generate-plan.sh` - Create plan file with proper naming
-- `templates/plan-template.md` - Standard plan structure
-- `references/phase-patterns.md` - Common phase patterns
+- User has a PRD and wants to create a technical plan
+- User asks to "plan", "break down", or "create tasks" for a feature
+- After PRD creation, before implementation begins
 
 ## Process
 
@@ -296,6 +296,12 @@ If `ask_user` is not available (headless mode, older CLI), the phase-gate hook h
 | Phase 4 | [time] | [Low/Med/High] |
 | **Total** | **[time]** | |
 ```
+
+## Plan Mode Compatibility
+
+This skill works well with Gemini CLI's native plan mode. When plan mode is active, use it
+to draft the technical plan before committing changes. Run `/omg:plan` to enter plan mode
+with OMG context pre-loaded.
 
 ## Output Location
 

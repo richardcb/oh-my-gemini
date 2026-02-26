@@ -1,0 +1,119 @@
+# /omg:plan - Enter plan mode with oh-my-gemini context
+
+description = "Activate native plan mode with OMG context: available skills, Conductor tracks, and project type."
+
+prompt = """
+You are entering plan mode with oh-my-gemini context pre-loaded.
+
+## Project Context
+
+### GEMINI.md
+```
+!{cat GEMINI.md 2>/dev/null | head -60 || echo "NOT_FOUND: No GEMINI.md - run /omg:setup first"}
+```
+
+### Conductor Status
+```
+!{cat conductor/tracks.md 2>/dev/null || echo "NO_CONDUCTOR: Conductor not initialized"}
+```
+
+### Active Track Details
+```
+!{find conductor/tracks -name "metadata.json" -exec cat {} + 2>/dev/null || echo "NO_ACTIVE_TRACKS"}
+```
+
+### Active Track Plan
+```
+!{find conductor/tracks -name "plan.md" -exec cat {} + 2>/dev/null | head -60 || echo "NO_PLAN"}
+```
+
+### Tech Stack
+```
+!{cat conductor/tech-stack.md 2>/dev/null | head -30 || cat package.json 2>/dev/null | head -30 || echo "NO_TECH_STACK"}
+```
+
+### Git Status
+```
+!{git status --short 2>/dev/null | head -10 || echo "NOT_GIT"}
+```
+
+### PRD Files
+```
+!{find . -name "*prd*.md" -o -name "*PRD*.md" 2>/dev/null | head -10 || echo "NO_PRDS"}
+```
+
+## Plan Mode Instructions
+
+You are now in **plan mode**. In this mode you should:
+
+1. **Analyze and plan** - Do not make code changes
+2. **Think through the approach** before implementation
+3. **Decompose complex tasks** into manageable steps
+
+## Available OMG Skills
+
+You can reference these skills in your plan:
+
+| Skill | Purpose |
+|-------|---------|
+| `prd-creation` | Generate Product Requirements Documents |
+| `technical-planning` | Transform PRD into phased task plan |
+| `implementation` | Execute plan tasks phase by phase |
+| `code-review` | Review code against plan and best practices |
+| `documentation` | Generate docs for implemented features |
+| `test-generation` | Create comprehensive test suites |
+| `git-commit` | Generate conventional commit messages |
+| `debug-assistant` | Systematic debugging and root cause analysis |
+| `quick-fix` | Minimal targeted bug fixes |
+| `refactor` | Safe code restructuring with test verification |
+| `persistence` | Persistent retry mode (ralph) |
+| `conductor-setup` | Initialize Conductor workflow |
+| `track-creation` | Create new Conductor tracks |
+
+## Planning Workflow
+
+### If a PRD reference is found above:
+1. Review the PRD requirements
+2. Use the `technical-planning` skill approach to create a phased plan
+3. Identify files to modify, files to create, and patterns to follow
+4. Structure tasks into phases: Data Layer -> Backend -> Frontend -> Review
+
+### If no PRD exists:
+1. Help the user define what they want to build
+2. Suggest creating a PRD first with the `prd-creation` skill
+3. Or for smaller tasks, create an informal plan directly
+
+### For refactoring or fixes:
+1. Identify the scope of changes needed
+2. Check for test coverage (suggest `test-generation` if missing)
+3. Plan incremental, safe changes
+4. Include verification steps between changes
+
+## Output
+
+Present your plan in a clear, actionable format:
+
+```
+## Plan: [Feature/Task Name]
+
+### Approach
+[Brief description of the approach]
+
+### Steps
+1. [Step with specific files and actions]
+2. [Step]
+3. [Step]
+
+### Skills to Use
+- [skill-name] for [purpose]
+
+### Risks/Considerations
+- [Risk and mitigation]
+```
+
+When the plan is ready, the user can exit plan mode and begin implementation
+with `/omg:implement` or `/omg:autopilot`.
+"""
+
+[tool_config]
+mode = "AUTO"

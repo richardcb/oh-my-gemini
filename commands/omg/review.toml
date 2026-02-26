@@ -1,0 +1,110 @@
+# /omg:review - Review code changes using the code-review skill
+
+description = "Gather git diff (staged + unstaged) and perform a code review using the code-review skill."
+
+prompt = """
+You are performing a code review using the oh-my-gemini code-review skill.
+
+## Current Changes
+
+### Staged Changes (git diff --cached)
+```
+!{git diff --cached --stat 2>/dev/null || echo "NO_STAGED_CHANGES"}
+```
+
+### Unstaged Changes (git diff)
+```
+!{git diff --stat 2>/dev/null || echo "NO_UNSTAGED_CHANGES"}
+```
+
+### Combined Diff Details
+```
+!{git diff --cached 2>/dev/null; git diff 2>/dev/null}
+```
+
+### Changed Files List
+```
+!{echo "=== Staged ===" && git diff --cached --name-only 2>/dev/null || echo "none"; echo "=== Unstaged ===" && git diff --name-only 2>/dev/null || echo "none"}
+```
+
+### Recent Commits (for context)
+```
+!{git log --oneline -5 2>/dev/null || echo "NO_GIT_HISTORY"}
+```
+
+### Project Context
+```
+!{cat GEMINI.md 2>/dev/null | head -40 || echo "NO_GEMINI_MD"}
+```
+
+### Active Track Plan (if any)
+```
+!{find conductor/tracks -name "plan.md" -exec cat {} + 2>/dev/null | head -40 || echo "NO_PLAN"}
+```
+
+## Review Instructions
+
+### If No Changes Found
+
+If both staged and unstaged diffs are empty:
+
+```
+No changes detected to review.
+
+To review changes:
+- Make some code changes first, or
+- Use `git diff HEAD~N` to review recent commits
+
+Tip: Stage your changes with `git add` before running /omg:review
+to include them in the review.
+```
+
+### If Changes Found
+
+Perform the review following the `code-review` skill methodology:
+
+1. **Plan Alignment**: If an active track plan exists, check changes against planned tasks
+2. **Code Quality**: Readability, naming, complexity, pattern consistency
+3. **AI-Specific Risks**: Logic correctness, resource efficiency, control flow safety
+4. **Type Safety**: Check for `any` types, unsafe assertions, missing null checks
+5. **Error Handling**: Verify error paths are covered
+6. **Security**: Input validation, no secrets in code, no injection risks
+
+### Review Output
+
+Provide a structured review:
+
+```
+## Code Review: [Brief Summary]
+
+### Overview
+[2-3 sentences summarizing the changes]
+
+### Files Reviewed
+- `path/to/file.ts` - [brief description of changes]
+
+### Findings
+
+#### Critical (Must Fix)
+[Issues that would cause bugs or security problems]
+
+#### Recommendations
+[Suggestions for improvement that aren't blocking]
+
+#### Positive Notes
+[Good patterns or approaches worth highlighting]
+
+### Overall Assessment
+[Approve / Approve with Comments / Request Changes]
+```
+
+### After Review
+
+Suggest next steps based on findings:
+- If approved: Suggest committing with `git-commit` skill
+- If changes needed: List specific fixes required
+- If major issues: Suggest using `quick-fix` or `refactor` skill
+"""
+
+[tool_config]
+mode = "AUTO"

@@ -3,7 +3,7 @@ name: code-review
 description: |
   Perform thorough code review of implemented features. Compares implementation against
   the technical plan, checks for AI-specific risks, and provides actionable feedback.
-  v2.0: Auto-verification now handled by hooks - focus on higher-level review.
+  v1.0: Auto-verification handled by hooks - focus on higher-level review.
 ---
 
 # Code Review Skill
@@ -12,7 +12,7 @@ description: |
 
 Perform a thorough code review of newly implemented features, comparing against the technical plan, checking for AI-specific risks, and providing actionable feedback.
 
-## v2.0 Changes
+## Hook Integration
 
 The `after-tool` hook now handles automatic verification (typecheck, lint) after every code change. This skill focuses on **higher-level review**:
 - Architecture alignment

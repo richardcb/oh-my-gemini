@@ -18,19 +18,6 @@
 gemini extensions install https://github.com/richardcb/oh-my-gemini
 ```
 
-## Enable Experimental Features
-
-oh-my-gemini uses experimental Gemini CLI features. Add to your `~/.gemini/settings.json`:
-
-```json
-{
-  "experimental": {
-    "enableAgents": true,
-    "skills": true
-  }
-}
-```
-
 ## First Run
 
 ### Option A: Quick Start (Autopilot)
@@ -57,9 +44,10 @@ Just start using it:
 | Command | Description |
 |---------|-------------|
 | `/omg:setup` | Initialize oh-my-gemini |
+| `/omg:plan` | Activate plan mode with OMG context |
 | `/omg:autopilot` | Autonomous task execution |
+| `/omg:review` | Trigger structured code review |
 | `/omg:status` | Show current state |
-| `/omg:conductor-setup` | Initialize Conductor workflow |
 | `/omg:track` | Start a new feature track |
 | `/omg:implement` | Execute the current plan |
 
@@ -74,7 +62,7 @@ Best for quick one-off tasks:
 ### Conductor Mode
 Best for complex features:
 ```
-/omg:conductor-setup          # Once per project
+/omg:setup                    # Once per project (includes Conductor option)
 /omg:track "new feature"      # Start planning
 /omg:implement                # Execute the plan
 ```
