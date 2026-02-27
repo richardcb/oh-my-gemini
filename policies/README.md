@@ -22,6 +22,10 @@ The Policy Engine evaluates rules in priority order:
 | 700-899 | Standard security (admin can override) |
 | 100-200 | Convenience allows (user can override) |
 
+### `conditional/omg-plan-mode.toml`
+
+Plan mode restrictions (deny writes/shell) that should **only** be loaded when plan mode is active. This file is intentionally kept outside the auto-loaded `policies/` directory to prevent it from blocking all shell commands unconditionally. It should be loaded via `--policy` flag when entering plan mode.
+
 ## Customizing
 
 To override these policies in your project, create `.gemini/policies/my-rules.toml`:
