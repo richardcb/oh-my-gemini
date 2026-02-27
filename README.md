@@ -10,7 +10,7 @@
 
 ## Why oh-my-gemini?
 
-oh-my-gemini uses **hook-based enforcement** — workflows are enforced through Gemini CLI's hook system, making behavior **deterministic rather than probabilistic**.
+oh-my-gemini uses **hook-based enforcement** — workflows are enforced through Gemini CLI's hook system, making behavior (relatively) **deterministic rather than probabilistic**.
 
 | Feature | Without OMG | With OMG |
 |---------|-------------|----------|
@@ -39,7 +39,7 @@ gemini extensions install https://github.com/richardcb/oh-my-gemini
 **Step 3: Build Something**
 
 ```
-/omg:autopilot build a REST API for managing tasks
+/omg:autopilot build a dashboard that shows how much mass I've gained since I started coding with AI
 ```
 
 ---

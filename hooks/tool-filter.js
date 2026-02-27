@@ -82,19 +82,21 @@ async function main() {
     }
 
     // Build output
+    // Gemini API toolConfig.mode must be AUTO, ANY, or NONE.
+    // - ANY forces tool calls on every turn (no text responses), causing loops.
+    // - allowedFunctionNames is only valid with ANY mode.
+    // Therefore we always use AUTO and log the detected mode for informational
+    // purposes. Tool restriction via allowedFunctionNames is not feasible with
+    // the current Gemini API without causing infinite tool-call loops.
     const output = {
       hookSpecificOutput: {
         toolConfig: {
-          mode: mode
+          mode: 'AUTO'
         }
       }
     };
 
-    // If mode has specific allowed tools (not '*'), set them
-    if (modeConfig.allowed && modeConfig.allowed !== '*') {
-      output.hookSpecificOutput.toolConfig.allowedFunctionNames = modeConfig.allowed;
-      log(`Filtering tools for ${mode}: ${modeConfig.allowed.join(', ')}`);
-    }
+    log(`Agent mode: ${mode} (tools: ${modeConfig.allowed === '*' ? 'all' : modeConfig.allowed.join(', ')})`);
 
     writeOutput(output);
   } catch (err) {
