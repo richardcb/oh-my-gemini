@@ -1,41 +1,22 @@
-# oh-my-gemini Plan Mode Policy
+# oh-my-gemini Plan Mode Policy — Complement to native plan.toml
 #
-# Restricts write operations when plan mode is active.
-# This policy should be loaded via --policy flag when entering plan mode,
-# or automatically if conditional rules are supported in the CLI version.
+# As of Gemini CLI v0.31.0, native plan mode (packages/core/src/policy/policies/plan.toml)
+# handles all read-only enforcement:
+#   - Blocks write_file, replace, run_shell_command via catch-all DENY (priority 60)
+#   - Allows read_file, list_directory, glob, grep_search, google_web_search (priority 70)
 #
-# Priority: 400-600 range (below omg-security.toml so security rules always win)
+# This extension policy ONLY fills gaps in native enforcement.
+# See: PR #20178 (centralized plan mode tool visibility in policy engine)
 
 # =============================================================================
-# PLAN MODE - DENY WRITE OPERATIONS
+# GAP: web_fetch is NOT in the native plan.toml allow list
 # =============================================================================
+# Native plan.toml's catch-all DENY at priority 60 blocks web_fetch because it
+# is not explicitly allowed and does not carry readOnlyHint=true annotation.
+# oh-my-gemini considers web_fetch essential for research during planning.
 
-# Block file writes in plan mode
 [[rule]]
-toolName = ["write_file", "replace", "edit_file", "create_file"]
-decision = "deny"
-priority = 500
-deny_message = "Plan mode active: Write operations are blocked. Exit plan mode to make changes."
-
-# Block shell commands in plan mode (could modify files)
-[[rule]]
-toolName = "run_shell_command"
-decision = "deny"
-priority = 500
-deny_message = "Plan mode active: Shell commands are blocked. Exit plan mode to execute commands."
-
-# =============================================================================
-# PLAN MODE - ALLOW READ OPERATIONS
-# =============================================================================
-
-# Allow all read operations in plan mode
-[[rule]]
-toolName = ["read_file", "list_directory", "glob", "search_file_content", "read_many_files"]
+toolName = ["web_fetch"]
 decision = "allow"
 priority = 600
-
-# Allow web search and fetch in plan mode (research is encouraged)
-[[rule]]
-toolName = ["web_fetch", "google_web_search"]
-decision = "allow"
-priority = 600
+modes = ["plan"]

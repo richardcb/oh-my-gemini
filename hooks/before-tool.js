@@ -3,7 +3,7 @@
  * oh-my-gemini BeforeTool Hook
  *
  * Event: BeforeTool
- * Matcher: write_file|replace|edit_file|create_file|run_shell_command|shell
+ * Matcher: write_file|replace|run_shell_command|shell
  * Fires: Before a matched tool executes
  *
  * Purpose:
@@ -123,7 +123,7 @@ async function main() {
     }
 
     // --- File Write Security (user-custom blocks + git checkpoints) ---
-    if (['write_file', 'replace', 'edit_file', 'create_file'].includes(toolName)) {
+    if (['write_file', 'replace'].includes(toolName)) {
       const filePath = toolInput.path || toolInput.file_path || toolInput.target_file || '';
 
       if (filePath && blockedPaths.length > 0) {

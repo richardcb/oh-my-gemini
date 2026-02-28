@@ -10,12 +10,16 @@
  * - Filter available tools based on the detected mode
  *
  * WHY THIS HOOK EXISTS ALONGSIDE POLICIES:
- * The Gemini CLI v0.30.0 policy engine only supports static TOML rules.
  * Agent mode detection is dynamic — it reads the user's prompt at runtime to
  * detect keywords like @researcher, @architect, @executor, research:, design:,
  * debug:, implement:, build:, etc. This context-dependent logic cannot be
  * expressed in static TOML policies. The per-mode tool allowlists are defined
  * in omg-config.json (toolFilter.modes), not hardcoded here.
+ *
+ * NOTE: As of v0.31.0, tool annotation matching (#20029) and policy chains
+ * (#19991) may enable migrating some of this logic to native TOML policies.
+ * This hook remains for keyword-based mode detection which requires runtime
+ * prompt inspection.
  *
  * Input: { llm_request, session_id, cwd, ... }
  * Output: { hookSpecificOutput: { toolConfig: { mode?, allowedFunctionNames? } } }

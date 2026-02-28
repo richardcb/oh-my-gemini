@@ -141,7 +141,7 @@ Plan State: Active (session abc123)
 ### before-tool.js
 
 **Event:** BeforeTool  
-**Matcher:** `write_file|replace|edit_file|create_file|run_shell_command|shell`  
+**Matcher:** `write_file|replace|run_shell_command|shell`
 **Fires:** Before matched tool executes
 
 **Purpose:**
@@ -206,7 +206,7 @@ When a dangerous operation is detected, the hook returns:
 ### after-tool.js
 
 **Event:** AfterTool  
-**Matcher:** `write_file|replace|edit_file|create_file`  
+**Matcher:** `write_file|replace`
 **Fires:** After matched tool executes
 
 **Purpose:**

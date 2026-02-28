@@ -1,4 +1,4 @@
-# oh-my-gemini Security Policies (v0.30.0 aligned)
+# oh-my-gemini Security Policies (v0.31.0 aligned)
 #
 # Static security rules for the Gemini CLI Policy Engine.
 # These rules are evaluated by the native policy engine for better performance
@@ -146,7 +146,7 @@ deny_message = "Blocked: System shutdown/restart commands are not allowed."
 
 # Block writes to node_modules
 [[rule]]
-toolName = ["write_file", "replace", "edit_file", "create_file"]
+toolName = ["write_file", "replace"]
 commandRegex = "node_modules"
 decision = "deny"
 priority = 700
@@ -154,7 +154,7 @@ deny_message = "Protected: Cannot write to node_modules. Use npm/yarn to manage 
 
 # Block writes to .git directory
 [[rule]]
-toolName = ["write_file", "replace", "edit_file", "create_file"]
+toolName = ["write_file", "replace"]
 commandRegex = "\\.git[/\\\\]"
 decision = "deny"
 priority = 700
@@ -162,7 +162,7 @@ deny_message = "Protected: Cannot write directly to .git directory. Use git comm
 
 # Block writes to system directories (Unix)
 [[rule]]
-toolName = ["write_file", "replace", "edit_file", "create_file"]
+toolName = ["write_file", "replace"]
 commandRegex = "\"path\":\\s*\"/(etc|usr|var|bin|sbin|boot|root)/"
 decision = "deny"
 priority = 800
@@ -170,7 +170,7 @@ deny_message = "Protected: Cannot write to system directories."
 
 # Block writes to Windows system directories
 [[rule]]
-toolName = ["write_file", "replace", "edit_file", "create_file"]
+toolName = ["write_file", "replace"]
 commandRegex = "(?i)(C:\\\\Windows|C:\\\\Program Files|%SystemRoot%|%ProgramFiles%)"
 decision = "deny"
 priority = 800
@@ -202,16 +202,16 @@ priority = 200
 #
 # The following tool restrictions are enforced DYNAMICALLY by hooks/tool-filter.js
 # because they depend on runtime prompt content (e.g., @researcher, @architect keywords).
-# The Gemini CLI v0.30.0 policy engine does not support conditional rules based on
-# prompt content, so these cannot be expressed as static TOML rules.
+# As of v0.31.0, tool annotation matching (#20029) and policy chains (#19991)
+# may enable migrating some of this logic to TOML. For now, these remain dynamic.
 #
 # Researcher mode (activated by @researcher keyword):
 #   Allowed: google_web_search, web_fetch, read_file, list_directory, glob
-#   Denied:  write_file, replace, edit_file, create_file, run_shell_command
+#   Denied:  write_file, replace, run_shell_command
 #
 # Architect mode (activated by @architect keyword):
 #   Allowed: read_file, list_directory, glob, search_file_content
-#   Denied:  write_file, replace, edit_file, create_file, run_shell_command
+#   Denied:  write_file, replace, run_shell_command
 #
 # Executor mode (default / activated by @executor keyword):
 #   Allowed: all tools (with security rules above still enforced)
