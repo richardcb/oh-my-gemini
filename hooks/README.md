@@ -87,7 +87,7 @@ Fires after user submits a prompt, before agent planning.
 ### BeforeTool Hook
 
 **Event:** `BeforeTool`  
-**Matcher:** `write_file|replace|edit_file|run_shell_command`  
+**Matcher:** `write_file|replace|run_shell_command|shell`
 **File:** `before-tool.js`
 
 Fires before matched tools execute.
@@ -109,7 +109,7 @@ format c:, rd /s /q c:\, del /f /q %systemroot%
 ### AfterTool Hook
 
 **Event:** `AfterTool`  
-**Matcher:** `write_file|replace|edit_file`  
+**Matcher:** `write_file|replace`
 **File:** `after-tool.js`
 
 Fires after matched tools execute.

@@ -1,7 +1,7 @@
 ---
 name: researcher
 description: Deep research agent powered by web search. Finds documentation, examples, best practices, and external context. Returns structured research briefs.
-model: gemini-3-flash-preview
+model: gemini-3.1-pro-preview
 tools:
   - web_fetch
   - google_web_search

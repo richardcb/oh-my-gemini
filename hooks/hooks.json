@@ -30,7 +30,7 @@
         ],
         "BeforeTool": [
             {
-                "matcher": "write_file|replace|edit_file|create_file|run_shell_command|shell",
+                "matcher": "write_file|replace|run_shell_command|shell",
                 "hooks": [
                     {
                         "name": "omg-security-gate",
@@ -44,7 +44,7 @@
         ],
         "AfterTool": [
             {
-                "matcher": "write_file|replace|edit_file|create_file",
+                "matcher": "write_file|replace",
                 "hooks": [
                     {
                         "name": "omg-auto-verify",

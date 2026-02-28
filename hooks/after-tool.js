@@ -3,7 +3,7 @@
  * oh-my-gemini AfterTool Hook
  *
  * Event: AfterTool
- * Matcher: write_file|replace|edit_file
+ * Matcher: write_file|replace
  * Fires: After a matched tool executes
  *
  * Purpose:

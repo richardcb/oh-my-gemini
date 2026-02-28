@@ -11,8 +11,6 @@ tools:
   - google_web_search
   - write_file
   - replace
-  - edit_file
-  - create_file
   - run_shell_command
 ---
 
