@@ -1,9 +1,9 @@
 ---
 name: technical-planning
 description: |
-  Transform a PRD into a detailed, phased technical implementation plan. Creates actionable
+  Plan and design a detailed, phased technical implementation from a PRD. Creates actionable
   task lists with guardrails for resource efficiency, error handling, and type safety.
-  Use after PRD creation, before implementation begins.
+  Activate for: plan, design, technical planning, task breakdown.
 ---
 
 # Technical Planning Skill

@@ -73,25 +73,39 @@ const DEFAULT_CONFIG = {
   toolFilter: {
     enabled: true,
     modes: {
-      researcher: {
+      research: {
         allowed: [
           'google_web_search',
           'web_fetch',
           'read_file',
           'list_directory',
-          'glob'
+          'glob',
+          'grep_search'
         ]
       },
-      architect: {
+      review: {
         allowed: [
           'read_file',
           'list_directory',
           'glob',
-          'search_file_content'
+          'grep_search'
         ]
       },
-      executor: {
+      implement: {
         allowed: '*'
+      },
+      quickfix: {
+        allowed: '*'
+      },
+      plan: {
+        allowed: [
+          'read_file',
+          'list_directory',
+          'glob',
+          'grep_search',
+          'google_web_search',
+          'web_fetch'
+        ]
       }
     }
   },
@@ -99,13 +113,15 @@ const DEFAULT_CONFIG = {
   ralph: {
     enabled: true,
     maxRetries: 5,
+    stuckThreshold: 3,
     triggerPatterns: [
       "I'm stuck",
       'I cannot',
       "I'm unable",
       'not possible',
       'failed to'
-    ]
+    ],
+    suggestedSkill: 'ralph-mode'
   },
   
   contextInjection: {
@@ -123,6 +139,11 @@ const DEFAULT_CONFIG = {
     }
   },
   
+  modes: {
+    enabled: true,
+    default: 'implement'
+  },
+
   debug: {
     enabled: false,
     logFile: null,
@@ -216,6 +237,7 @@ function loadConfig(projectRoot) {
   // Enforce safe limits
   config.ralph = config.ralph || {};
   config.ralph.maxRetries = Math.min(config.ralph.maxRetries || 5, 20);
+  config.ralph.stuckThreshold = Math.max(2, Math.min(config.ralph.stuckThreshold || 3, 10));
   config.autoVerification = config.autoVerification || {};
   config.autoVerification.timeout = Math.min(config.autoVerification.timeout || 30000, 120000);
 
@@ -245,6 +267,14 @@ function validateConfig(config) {
     }
   }
   
+  // Validate modes config
+  if (config.modes) {
+    const validPrimaryModes = ['research', 'implement', 'review', 'quickfix', 'plan'];
+    if (config.modes.default && !validPrimaryModes.includes(config.modes.default)) {
+      errors.push(`modes.default must be one of: ${validPrimaryModes.join(', ')}`);
+    }
+  }
+
   // Validate tool filter modes
   if (config.toolFilter && config.toolFilter.modes) {
     for (const [mode, settings] of Object.entries(config.toolFilter.modes)) {

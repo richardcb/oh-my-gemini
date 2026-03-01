@@ -8,5 +8,15 @@
   },
   "keywords": ["gemini-cli", "gemini", "orchestration", "multi-agent"],
   "author": "richardcb",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "build:check": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "esbuild": "^0.24.0",
+    "@types/node": "^22.0.0"
+  }
 }

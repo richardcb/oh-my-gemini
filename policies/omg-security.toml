@@ -177,44 +177,22 @@ priority = 800
 deny_message = "Protected: Cannot write to Windows system directories."
 
 # =============================================================================
-# SAFE READ OPERATIONS - ALLOW
+# NOTE: Extension-tier policies cannot use decision = "allow" (Gemini CLI
+# silently ignores allow from extensions for security). Read-only tool access
+# and safe shell commands are permitted by default. Mode-based tool filtering
+# is handled dynamically by hooks/tool-filter.js.
 # =============================================================================
-
-# Allow read operations automatically (they're safe)
-[[rule]]
-toolName = ["read_file", "list_directory", "glob", "search_file_content", "read_many_files"]
-decision = "allow"
-priority = 100
-
-# =============================================================================
-# GIT STATUS/LOG - ALLOW (common safe operations)
-# =============================================================================
-
-[[rule]]
-toolName = "run_shell_command"
-commandRegex = "^git\\s+(status|log|diff|branch|show)\\b"
-decision = "allow"
-priority = 200
 
 # =============================================================================
 # AGENT MODE RESTRICTIONS - MIGRATION NOTE
 # =============================================================================
 #
-# The following tool restrictions are enforced DYNAMICALLY by hooks/tool-filter.js
-# because they depend on runtime prompt content (e.g., @researcher, @architect keywords).
-# As of v0.31.0, tool annotation matching (#20029) and policy chains (#19991)
-# may enable migrating some of this logic to TOML. For now, these remain dynamic.
+# Tool restrictions per mode are enforced DYNAMICALLY by hooks/tool-filter.js
+# because they depend on runtime mode state (resolved from prompt keywords in
+# before-agent.js → persisted to .gemini/omg-state/{session}/mode.json).
 #
-# Researcher mode (activated by @researcher keyword):
-#   Allowed: google_web_search, web_fetch, read_file, list_directory, glob
-#   Denied:  write_file, replace, run_shell_command
-#
-# Architect mode (activated by @architect keyword):
-#   Allowed: read_file, list_directory, glob, search_file_content
-#   Denied:  write_file, replace, run_shell_command
-#
-# Executor mode (default / activated by @executor keyword):
-#   Allowed: all tools (with security rules above still enforced)
+# Modes: research, implement, review, quickfix, plan, eco (modifier)
+# Mode profiles define tool allowlists in src/lib/mode-config.ts.
 #
 # TODO: If the policy engine adds conditional/context-aware rules in a future
 # Gemini CLI release, migrate these restrictions from tool-filter.js to TOML.

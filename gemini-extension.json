@@ -136,6 +136,16 @@
       "type": "boolean",
       "default": true
     },
+    "ralph.stuckThreshold": {
+      "description": "Consecutive same-error retries before stuck protocol fires",
+      "type": "number",
+      "default": 3
+    },
+    "ralph.suggestedSkill": {
+      "description": "Skill to suggest when Ralph keywords detected",
+      "type": "string",
+      "default": "ralph-mode"
+    },
     "planMode.enabled": {
       "description": "Enable plan mode integration (read-only tool restrictions via omg-plan-mode.toml)",
       "type": "boolean",
@@ -145,6 +155,16 @@
       "description": "Inject active Conductor track info",
       "type": "boolean",
       "default": true
+    },
+    "modes.enabled": {
+      "description": "Enable the mode system (research, implement, review, quickfix, plan, eco)",
+      "type": "boolean",
+      "default": true
+    },
+    "modes.default": {
+      "description": "Default primary mode when no keyword is detected",
+      "type": "string",
+      "default": "implement"
     }
   }
 }

@@ -95,10 +95,12 @@ ralph: fix all TypeScript errors in this project
 ```
 
 The `ralph-retry` hook automatically:
-- Detects failure indicators
-- Suggests alternative approaches
-- Forces retries (up to configurable max)
-- Escalates to user after max attempts
+- Reads verification state from `after-tool.js` to validate success claims
+- Denies premature "success" when typecheck/lint is actually failing
+- Tracks error signatures — detects when the agent is stuck on the same error
+- Generates error-aware retry messages with actual error details
+- Forces retries (up to configurable max), then escalates to user
+- Suggests the `ralph-mode` skill for structured persistence guidance
 
 ---
 
@@ -118,15 +120,20 @@ The `ralph-retry` hook automatically:
 
 ## Magic Keywords
 
-Include these in your prompts for specific behaviors:
+Prefix your prompts with keywords for deterministic mode selection (< 1ms, no LLM call):
 
-| Keyword | Effect |
-|---------|--------|
-| `ralph` / `persistent` | Enable persistence mode - don't give up |
-| `@researcher` | Switch to research mode (read + web only) |
-| `@architect` | Switch to architect mode (read only) |
-| `@executor` | Switch to executor mode (full access) |
-| `plan` / `design` | Focus on planning before implementation |
+| Keyword | Mode | Type | Effect |
+|---------|------|------|--------|
+| `research:`, `@researcher` | research | Primary | Research mode (read + web tools) |
+| `review:`, `@architect` | review | Primary | Review mode (read-only tools) |
+| `implement:`, `build:`, `@executor` | implement | Primary | Implement mode (full tools) |
+| `quickfix:`, `qf:` | quickfix | Primary | Quick fix mode (full tools) |
+| `plan:`, `design:` | plan | Primary | Plan mode (read + web tools) |
+| `eco:`, `eco ` | eco | Modifier | Eco modifier (defaults to implement if no primary) |
+| `ralph:`, `persistent:`, `@ralph` | N/A | Ralph | Suggests persistence skill |
+| `don't give up`, `keep trying` | N/A | Ralph | Suggests persistence skill |
+
+**No keyword = implement mode.** Prompts without keywords default to full tool access. See [docs/MODES.md](docs/MODES.md) for details.
 
 ---
 
@@ -149,7 +156,12 @@ Customize hook behavior via `.gemini/omg-config.json`:
   },
   "ralph": {
     "enabled": true,
-    "maxRetries": 5
+    "maxRetries": 5,
+    "stuckThreshold": 3
+  },
+  "modes": {
+    "enabled": true,
+    "default": "implement"
   }
 }
 ```
@@ -166,8 +178,18 @@ oh-my-gemini/
 ├── commands/omg/            # Slash commands
 ├── .gemini/agents/          # Agent definitions (SubAgent format)
 ├── skills/                  # Skill definitions
+│   ├── ralph-mode/          # Persistence mode skill
+│   ├── research-methodology/# Research mode skill
+│   ├── code-review/         # Review mode skill
+│   └── ...
+├── src/lib/                 # TypeScript source modules
+│   ├── keyword-registry.ts  # Magic keyword detection
+│   ├── mode-state.ts        # Mode state persistence
+│   ├── mode-config.ts       # Mode profile definitions
+│   └── mode-types.ts        # Shared type definitions
+├── dist/lib/                # Compiled JS (built via esbuild)
 ├── hooks/                   # Hook scripts
-│   ├── hooks.json           # Hook definitions for Gemini CLI
+│   ├── hooks.json           # Hook definitions (documentation-only)
 │   ├── lib/                 # Shared utilities
 │   ├── session-start.js
 │   ├── before-agent.js
@@ -177,8 +199,6 @@ oh-my-gemini/
 │   ├── phase-gate.js
 │   └── ralph-retry.js
 ├── policies/                # TOML policy files
-│   ├── omg-security.toml    # Static security rules
-│   └── omg-plan-mode.toml   # Plan mode restrictions
 ├── conductor/templates/     # Conductor workflow templates
 ├── mcp/                     # MCP server configurations
 ├── templates/               # Project templates
@@ -190,7 +210,7 @@ oh-my-gemini/
 
 ## Requirements
 
-- [Gemini CLI](https://geminicli.com) v0.30.0+
+- [Gemini CLI](https://geminicli.com) v0.31.0+
 - Google AI API key or Vertex AI credentials
 - Node.js (for hook execution)
 
@@ -199,6 +219,7 @@ oh-my-gemini/
 ## Documentation
 
 - [Getting Started](docs/getting-started.md)
+- [Mode System](docs/MODES.md)
 - [Hooks Reference](docs/HOOKS.md)
 - [Conductor Workflow](conductor/README.md)
 - [Contributing](CONTRIBUTING.md)
@@ -209,6 +230,7 @@ oh-my-gemini/
 
 - [x] v0.x: Core hooks infrastructure + agent simplification
 - [x] v1.0: Skills, policies, plan mode integration, v0.30.0 alignment
+- [x] v1.1: Mode system, keyword registry, enhanced Ralph v2
 - [ ] v2.0: Multi-agent orchestration (when subagents stabilize)
 
 ---

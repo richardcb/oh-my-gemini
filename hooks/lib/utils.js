@@ -346,34 +346,28 @@ function findCurrentTask(planContent) {
 }
 
 /**
- * Detect agent mode from prompt content
+ * Detect agent mode from prompt content.
+ * @deprecated Use detectMagicKeywords() from dist/lib/keyword-registry instead.
+ * Retained as fallback when dist/ is not built. Implicit regex matching removed in v1.1.
  * @param {string} prompt - User prompt
  * @param {string} context - Additional context
  * @returns {string} Agent mode: 'researcher', 'architect', or 'executor'
  */
 function detectAgentMode(prompt, context = '') {
   const combined = `${prompt} ${context}`.toLowerCase();
-  
-  // Explicit mode markers (highest priority)
+
+  // Explicit mode markers only (implicit regex removed in v1.1)
   if (combined.includes('@researcher') || combined.includes('research:')) {
     return 'researcher';
   }
-  if (combined.includes('@architect') || combined.includes('design:') || combined.includes('debug:')) {
+  if (combined.includes('@architect')) {
     return 'architect';
   }
   if (combined.includes('@executor') || combined.includes('implement:') || combined.includes('build:')) {
     return 'executor';
   }
-  
-  // Implicit detection from task keywords
-  if (/\b(find|search|look\s*up|documentation|how\s+to|best\s+practice|research|investigate)\b/.test(combined)) {
-    return 'researcher';
-  }
-  if (/\b(design|architect|structure|plan|debug|why\s+is|trace|analyze|review)\b/.test(combined)) {
-    return 'architect';
-  }
-  
-  // Default to executor for implementation tasks
+
+  // Default to executor (no implicit regex detection)
   return 'executor';
 }
 

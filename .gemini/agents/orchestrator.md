@@ -6,7 +6,7 @@ tools:
   - read_file
   - list_directory
   - glob
-  - search_file_content
+  - grep_search
   - web_fetch
   - google_web_search
   - write_file

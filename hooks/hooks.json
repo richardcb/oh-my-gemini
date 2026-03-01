@@ -1,4 +1,5 @@
 {
+    "_comment": "DOCUMENTATION ONLY. Canonical hook registration is in gemini-extension.json. This file exists for reference and direct settings.json integration during development.",
     "hooks": {
         "SessionStart": [
             {
