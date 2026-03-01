@@ -1,6 +1,6 @@
 {
   "name": "oh-my-gemini",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Multi-agent orchestration extension for Gemini CLI",
   "repository": {
     "type": "git",
