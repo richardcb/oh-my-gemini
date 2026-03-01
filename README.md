@@ -10,7 +10,7 @@
 
 ## Why oh-my-gemini?
 
-oh-my-gemini uses **hook-based enforcement** — workflows are enforced through Gemini CLI's hook system, making behavior (relatively) **deterministic rather than probabilistic**.
+AI agents in large codebases face two problems: they don't follow rules reliably, and they lose context across sessions. oh-my-gemini solves both — **hook-based enforcement** makes behavior deterministic, and **Conductor** gives agents persistent, structured context so they know what to build, how to build it, and where they left off.
 
 | Feature | Without OMG | With OMG |
 |---------|-------------|----------|
@@ -18,6 +18,7 @@ oh-my-gemini uses **hook-based enforcement** — workflows are enforced through 
 | Security gates | "Avoid dangerous commands" | `before-tool` hook + policy engine reject them |
 | Auto-verification | "Remember to typecheck" | `after-tool` hook runs it |
 | Phase gates | "Wait for confirmation" | `phase-gate` hook advises you |
+| Context management | "Here's our project..." (every session) | Conductor persists specs, plans, and project knowledge |
 | Persistence | Manual retry prompts | `ralph-retry` hook forces retries |
 
 ---
@@ -69,9 +70,17 @@ oh-my-gemini uses Gemini CLI's hook system for deterministic behavior:
 | **Architect** | System design, debugging | Read only (enforced by hook) |
 | **Executor** | Code implementation | Full (with security gates) |
 
-### 📋 Conductor Workflow
+### 📋 Conductor — Codified Context
 
-Context-Driven Development with specs and plans:
+Agents working on large codebases need more than instructions — they need *project knowledge*. Research on codified context infrastructure shows that structured context files are associated with [29% faster agent runtime and 17% fewer tokens](https://arxiv.org/abs/2602.20478). Conductor implements this pattern as a three-layer context system:
+
+| Layer | Contents | Purpose |
+|-------|----------|---------|
+| **Project knowledge** | `product.md`, `tech-stack.md`, `workflow.md` | Persistent conventions, stack decisions, and process — loaded every session |
+| **Feature specs** | Per-track `spec.md` with requirements, UX flows, invariants | What to build, scoped to a single feature |
+| **Phased plans** | Per-track `plan.md` with task checklists and verification gates | How to build it, with hook-enforced phase progression |
+
+The `before-agent` hook automatically injects the active track's context into every prompt. The `phase-gate` hook parses `plan.md` after each response, tracking task completion and advising the agent on current phase progress. No manual context management needed.
 
 ```bash
 /omg:setup              # Initialize project (includes Conductor option)
@@ -83,8 +92,6 @@ Context-Driven Development with specs and plans:
 ```
 
 **Workflow:** PRD → Technical Plan → Implementation → Review
-
-Phase gates are enforced by the `phase-gate` hook (advisory mode).
 
 ### 🔄 Persistence Mode (Ralph)
 
@@ -251,7 +258,8 @@ MIT
 
 - [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) - Original inspiration
 - [Gemini CLI](https://geminicli.com) - Hook system that makes OMG possible
+- ["Codified Context"](https://arxiv.org/abs/2602.20478) - Research validating the structured context approach
 
 ---
 
-**Hook-enforced workflows. Deterministic behavior. OMG.**
+**Hook-enforced workflows. Codified context. OMG.**
