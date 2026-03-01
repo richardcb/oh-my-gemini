@@ -171,15 +171,21 @@ The `before-tool` hook creates automatic git checkpoints before file modificatio
 
 ## Agent Mode Switching
 
-Switch between agent modes for different tasks:
+Switch between agent modes using magic keywords:
 
-| Mode | Activate With | Tool Access |
-|------|---------------|-------------|
-| @researcher | Include "@researcher" in prompt | Read + Web only |
-| @architect | Include "@architect" in prompt | Read only |
-| @executor | Include "@executor" in prompt | Full access |
+| Mode | Keywords | Type | Tool Access |
+|------|----------|------|-------------|
+| research | `research:`, `@researcher` | Primary | Read + Web only |
+| review | `review:`, `@architect` | Primary | Read only |
+| implement | `implement:`, `build:`, `@executor` | Primary | Full access |
+| quickfix | `quickfix:`, `qf:` | Primary | Full access |
+| plan | `plan:`, `design:` | Primary | Read + Web only |
+| eco | `eco:`, `eco ` | Modifier | Inherited from primary |
+| (ralph) | `ralph:`, `persistent:`, `@ralph`, `don't give up`, `keep trying` | Ralph | Suggests persistence skill |
 
-The `tool-filter` hook enforces tool restrictions automatically.
+**No keyword = implement mode.** Ambiguous prompts default to full tool access.
+
+The `tool-filter` hook enforces tool restrictions automatically based on the detected mode.
 
 ---
 

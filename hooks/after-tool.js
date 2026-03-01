@@ -32,6 +32,19 @@ const {
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
+// Import mode state and config for mode-aware verification
+let readModeState, composeModeProfile;
+try {
+  const ms = require('../dist/lib/mode-state');
+  readModeState = ms.readModeState;
+  const mc = require('../dist/lib/mode-config');
+  composeModeProfile = mc.composeModeProfile;
+} catch (err) {
+  debug(`Failed to load mode-state/mode-config: ${err.message}. Using config-only verification.`);
+  readModeState = null;
+  composeModeProfile = null;
+}
+
 /**
  * Run TypeScript type checking
  * @param {string} projectRoot - Project root directory
@@ -179,6 +192,56 @@ function runLint(projectRoot, filePath, timeout = 30000) {
 }
 
 /**
+ * Write verification state to session-scoped state directory.
+ * Schema: { lastRun: string (ISO 8601), typecheck: { passed, errorCount, summary },
+ *           lint: { passed, errorCount, summary }, timestamp: number (epoch ms) }
+ * Uses temp-file + rename for atomic writes (Windows/Unix safe).
+ * @param {string} projectRoot - Project root directory
+ * @param {string} sessionId - Session identifier
+ * @param {object|null} typecheckResult - Result from runTypeCheck, or null if skipped
+ * @param {object|null} lintResult - Result from runLint, or null if skipped
+ */
+function writeVerificationState(projectRoot, sessionId, typecheckResult, lintResult) {
+  try {
+    const dir = path.join(projectRoot, '.gemini', 'omg-state', sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+
+    const extractSummary = (result) => {
+      if (!result || result.skipped) return { passed: true, errorCount: 0, summary: '' };
+      const passed = result.success && !result.hasLintErrors;
+      const output = (result.output || '').trim();
+      const summary = output.substring(0, 500);
+      const errorCount = passed ? 0 : Math.max(1, output.split('\n').filter(l => l.trim()).length);
+      return { passed, errorCount, summary };
+    };
+
+    const state = {
+      lastRun: new Date().toISOString(),
+      typecheck: extractSummary(typecheckResult),
+      lint: extractSummary(lintResult),
+      timestamp: Date.now()
+    };
+
+    const json = JSON.stringify(state, null, 2);
+    const tmpPath = path.join(dir, 'verification.tmp.json');
+    const finalPath = path.join(dir, 'verification.json');
+
+    fs.writeFileSync(tmpPath, json);
+    try {
+      fs.renameSync(tmpPath, finalPath);
+    } catch (renameErr) {
+      // Fallback: direct write if rename fails (e.g., cross-device on some Windows configs)
+      fs.writeFileSync(finalPath, json);
+      try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+    }
+    debug(`writeVerificationState: wrote ${finalPath}`);
+  } catch (err) {
+    debug(`writeVerificationState failed: ${err.message}`);
+    // Non-fatal — Ralph will fall back to heuristics
+  }
+}
+
+/**
  * Format verification results for context injection
  * @param {string} checkType - Type of check (typecheck, lint)
  * @param {object} result - Result from verification
@@ -242,44 +305,75 @@ async function main() {
       writeOutput({});
       return;
     }
-    
+
+    // --- Mode-aware verification intensity ---
+    const sessionId = input.session_id || 'default';
+    let verifyTypecheck = true;
+    let verifyLint = true;
+
+    if (readModeState && composeModeProfile) {
+      const modeState = readModeState(sessionId, projectRoot);
+      const profile = composeModeProfile(modeState.primary, modeState.modifiers);
+
+      if (profile.autoVerification) {
+        if (profile.autoVerification.enabled === false) {
+          log(`Mode ${modeState.primary}: verification disabled, skipping`);
+          writeOutput({});
+          return;
+        }
+        verifyTypecheck = profile.autoVerification.typecheck !== false;
+        verifyLint = profile.autoVerification.lint !== false;
+        debug(`Mode ${modeState.primary}: typecheck=${verifyTypecheck}, lint=${verifyLint}`);
+      }
+    }
+
     const verificationConfig = getConfigValue(config, 'autoVerification', {});
     const timeout = verificationConfig.timeout || 30000;
-    
+
     let additionalContext = '';
     let hasErrors = false;
-    
+    let typecheckResult = null;
+    let lintResult = null;
+
     // --- Run TypeCheck ---
-    if (verificationConfig.typecheck !== false) {
+    if (verifyTypecheck && verificationConfig.typecheck !== false) {
       log(`Running typecheck for ${filePath}`);
-      const typecheckResult = runTypeCheck(projectRoot, filePath, timeout);
-      
+      typecheckResult = runTypeCheck(projectRoot, filePath, timeout);
+
       const formattedResult = formatResult('TypeCheck', typecheckResult);
       if (formattedResult) {
         additionalContext += formattedResult;
       }
-      
+
       if (!typecheckResult.success && !typecheckResult.skipped) {
         hasErrors = true;
       }
     }
-    
+
     // --- Run Lint ---
-    if (verificationConfig.lint !== false) {
+    if (verifyLint && verificationConfig.lint !== false) {
       log(`Running lint for ${filePath}`);
-      const lintResult = runLint(projectRoot, filePath, timeout);
-      
+      lintResult = runLint(projectRoot, filePath, timeout);
+
       const formattedResult = formatResult('Lint', lintResult);
       if (formattedResult) {
         additionalContext += formattedResult;
       }
-      
+
       if (lintResult.hasLintErrors) {
         // Lint errors are warnings, not blockers
         additionalContext += '\n_Consider fixing lint warnings before proceeding._\n';
       }
     }
-    
+
+    // --- Write verification state for Ralph (FR-1) ---
+    // Only write if at least one check was not skipped
+    const hasActualResults = (typecheckResult && !typecheckResult.skipped) ||
+                             (lintResult && !lintResult.skipped);
+    if (hasActualResults) {
+      writeVerificationState(projectRoot, sessionId, typecheckResult, lintResult);
+    }
+
     // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
 

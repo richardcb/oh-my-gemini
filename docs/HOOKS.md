@@ -1,6 +1,6 @@
 # oh-my-gemini Hooks Reference
 
-oh-my-gemini v1.0.0 uses Gemini CLI's hook system to enforce workflows deterministically. This document covers all hooks, their configuration, and customization options.
+oh-my-gemini uses Gemini CLI's hook system to enforce workflows deterministically. This document covers all hooks, their configuration, and customization options.
 
 ## Overview
 
@@ -30,6 +30,9 @@ Hooks are scripts that execute at specific points in Gemini CLI's lifecycle. The
 - Load session-specific or global Conductor track state
 - Inject project context with plan state label
 - Display welcome message with status
+- Clean stale session state directories (> 24h)
+- Ensure `.gemini/.gitignore` includes `omg-state/`
+- Check `experimental.enableAgents` prerequisite
 
 **Session-Aware Plan Loading (v0.30.0):**
 The hook now attempts to load a session-specific plan before falling back to the global Conductor plan. It checks:
@@ -39,10 +42,15 @@ The hook now attempts to load a session-specific plan before falling back to the
 
 If no session plan is found, falls back to `loadConductorState()` (global).
 
+**Stale State Cleanup:**
+On each session start, calls `cleanStaleState()` from `dist/lib/mode-state` to remove session directories in `.gemini/omg-state/` older than 24 hours. This prevents unbounded growth of mode, verification, and Ralph state files.
+
+**Subagent Prerequisite Check:**
+Checks the user's Gemini CLI `settings.json` for `experimental.enableAgents: true`. If not set, emits a warning via `systemMessage` advising the user to enable it for native subagent routing.
+
 **Output Example:**
 ```
-oh-my-gemini ready | Conductor: User Authentication (45% complete)
-Plan State: Active (session abc123)
+oh-my-gemini ready | Modes: keyword-driven | Conductor: User Authentication (45% complete)
 ```
 
 **Configuration:** None (always active). Override session plan path with `sessionPlanPath` in config.
@@ -51,21 +59,39 @@ Plan State: Active (session abc123)
 
 ### before-agent.js
 
-**Event:** BeforeAgent  
+**Event:** BeforeAgent
 **Fires:** After user submits prompt, before agent planning
 
 **Purpose:**
-- Inject git history for bug-fix tasks
-- Inject recent file changes for continuation tasks
-- Add current Conductor task context
+- Resolve the active mode from Magic Keywords (via keyword registry)
+- Persist mode state to `.gemini/omg-state/{session}/mode.json` for downstream hooks
+- Inject context (git history, Conductor state, recent changes) per mode profile
+- Suggest skills via `systemMessage` based on mode and Ralph keywords
+- Detect Ralph keywords and suggest the `ralph-mode` skill
 
-**Triggers:**
+**Mode Resolution:**
+Calls `resolveModeFromPrompt(prompt)` from the compiled keyword registry (`dist/lib/mode-state`). If `dist/` is not built, falls back to `detectMagicKeywords()` with stub defaults. The resolved mode state is written to `.gemini/omg-state/{session}/mode.json` for all downstream hooks to read.
 
-| Keyword in Prompt | Context Injected |
-|-------------------|------------------|
-| fix, bug, error, issue | Recent git commits |
-| continue, resume, pick up | Recently changed files |
-| implement, build, task | Current Conductor task |
+**Mode-Aware Context Injection:**
+Each mode profile defines context injection behavior:
+
+| Mode | Git History | Conductor State | Recent Changes |
+|------|------------|-----------------|----------------|
+| `research` | Disabled | Summary only | Disabled |
+| `implement` | Keyword-triggered | Full | Enabled |
+| `review` | Always | Summary only | Disabled |
+| `quickfix` | Keyword-triggered | Disabled | Disabled |
+| `plan` | Disabled | Full | Disabled |
+| `eco` (modifier) | Disabled | Summary only | Disabled |
+
+**Skill Suggestions:**
+When a mode has `suggestedSkills` in its profile, a skill suggestion is emitted via `systemMessage`:
+- `research` → suggests `research-methodology`
+- `review` → suggests `code-review`
+- `plan` → suggests `technical-planning`
+
+**Ralph Keyword Detection:**
+Calls `detectRalphKeywords(prompt)` from the keyword registry. If Ralph keywords are detected, appends to `systemMessage`: `"Ralph mode active. Consider activating the ralph-mode skill for structured persistence guidance."`
 
 **Configuration:**
 ```json
@@ -90,21 +116,32 @@ Plan State: Active (session abc123)
 
 ### tool-filter.js
 
-**Event:** BeforeToolSelection  
+**Event:** BeforeToolSelection
 **Fires:** Before LLM selects which tools to use
 
 **Purpose:**
-- Detect current agent mode
-- Filter available tools based on mode
-- Enforce tool sandboxing
+- Read persisted mode state from `.gemini/omg-state/{session}/mode.json`
+- Compose mode profile (primary + modifiers) via `composeModeProfile()`
+- Filter available tools based on the composed mode profile
+- Support MCP tool passthrough for modes that allow it
 
-**Agent Modes:**
+**Mode-Based Tool Filtering:**
 
-| Mode | Detection | Allowed Tools |
-|------|-----------|---------------|
-| `@researcher` | "@researcher" in prompt | read_file, list_directory, google_web_search, web_fetch |
-| `@architect` | "@architect" in prompt | read_file, list_directory, glob, search_file_content |
-| `@executor` | Default / "@executor" | All tools (with security gates) |
+| Mode | Tools | MCP Passthrough |
+|------|-------|-----------------|
+| `research` | `read_file`, `read_many_files`, `list_directory`, `glob`, `grep_search`, `google_web_search`, `web_fetch`, `delegate_to_agent` | Yes |
+| `implement` | All (`"*"`) | N/A |
+| `review` | `read_file`, `read_many_files`, `list_directory`, `glob`, `grep_search`, `delegate_to_agent` | No |
+| `quickfix` | All (`"*"`) | N/A |
+| `plan` | Native (`null` — defers to Gemini CLI plan mode restrictions) | N/A |
+
+Meta-tools (`delegate_to_agent`, `ask_user`, `activate_skill`, `save_memory`, `write_todos`, `get_internal_docs`) are always included in restricted mode allowlists.
+
+**MCP Tool Passthrough:**
+When `mcpPassthrough: true` is set on a mode profile (e.g., `research`), the hook scans `llm_request.tools` for tool names containing the `__` separator (MCP tool naming convention) and adds them to the allowed list.
+
+**UNION Aggregation Limitation:**
+BeforeToolSelection hooks use UNION aggregation across extensions. If another extension contributes hooks, their `allowedFunctionNames` are merged (not intersected). Subagent `tools` fields in `.gemini/agents/*.md` are the only reliable enforcement mechanism.
 
 **Configuration:**
 ```json
@@ -112,24 +149,20 @@ Plan State: Active (session abc123)
   "toolFilter": {
     "enabled": true,
     "modes": {
-      "researcher": {
-        "allowed": [
-          "google_web_search",
-          "web_fetch",
-          "read_file",
-          "list_directory"
-        ]
+      "research": {
+        "allowed": ["google_web_search", "web_fetch", "read_file", "list_directory", "glob", "grep_search"]
       },
-      "architect": {
-        "allowed": [
-          "read_file",
-          "list_directory",
-          "glob",
-          "search_file_content"
-        ]
+      "review": {
+        "allowed": ["read_file", "list_directory", "glob", "grep_search"]
       },
-      "executor": {
+      "implement": {
         "allowed": "*"
+      },
+      "quickfix": {
+        "allowed": "*"
+      },
+      "plan": {
+        "allowed": ["read_file", "list_directory", "glob", "grep_search", "google_web_search", "web_fetch"]
       }
     }
   }
@@ -205,7 +238,7 @@ When a dangerous operation is detected, the hook returns:
 
 ### after-tool.js
 
-**Event:** AfterTool  
+**Event:** AfterTool
 **Matcher:** `write_file|replace`
 **Fires:** After matched tool executes
 
@@ -213,27 +246,39 @@ When a dangerous operation is detected, the hook returns:
 - Run TypeScript typecheck after .ts/.tsx files
 - Run lint after code files
 - Inject errors into context
+- Write verification state to `.gemini/omg-state/{session}/verification.json` for Ralph v2
+- Adjust verification intensity per active mode profile
+
+**Mode-Aware Verification:**
+
+| Mode | TypeCheck | Lint |
+|------|-----------|------|
+| `research` | Disabled | Disabled |
+| `implement` | Enabled | Enabled |
+| `review` | Disabled | Enabled |
+| `quickfix` | Enabled | Disabled |
+| `plan` | Disabled | Disabled |
+| `eco` (modifier) | Enabled | Disabled |
+
+**Verification State (Ralph Integration):**
+After both checks complete, writes `verification.json` to the session state directory using an atomic temp-file + rename pattern. Schema:
+```json
+{
+  "lastRun": "2026-03-01T10:00:00.000Z",
+  "typecheck": { "passed": false, "errorCount": 3, "summary": "TS2339: ..." },
+  "lint": { "passed": true, "errorCount": 0, "summary": "" },
+  "timestamp": 1740826800000
+}
+```
+
+This file is read by `ralph-retry.js` to validate agent success claims against actual verification results. Only written when at least one check was not skipped.
 
 **Verification Commands:**
 
 | Check | Commands Tried |
 |-------|----------------|
-| TypeScript | `npm run typecheck`, `npm run type-check`, `npx tsc --noEmit` |
-| Lint | `npm run lint` |
-
-**Output on Error:**
-```markdown
-## ⚠️ TypeScript Errors
-
-Command: `npm run typecheck`
-
-```
-src/auth.ts:45:10 - error TS2339: Property 'name' does not exist on type 'User'.
-```
-
----
-**Please fix these issues before proceeding to the next task.**
-```
+| TypeScript | `npm run typecheck`, `npm run type-check`, `tsc --noEmit` |
+| Lint | `npm run lint`, direct `eslint` |
 
 **Configuration:**
 ```json
@@ -280,51 +325,56 @@ Uses `resolveSessionPlanPath()` to check for session-specific plan files before 
 
 ### ralph-retry.js
 
-**Event:** AfterAgent  
+**Event:** AfterAgent
 **Fires:** After every agent response (when Ralph mode active)
 
 **Purpose:**
-- Detect failure indicators
-- Automatically retry with alternative approaches
-- Track attempts and escalate after max retries
+- Detect failure indicators in agent response
+- Read verification state from `after-tool.js` to validate success claims
+- Deny premature "success" when verification shows errors
+- Track error signatures for stuck detection
+- Generate error-aware retry messages with actual error details
+- Force retry up to N attempts, then escalate to user
 
 **Activation:**
-Include any of these in your prompt:
-- `ralph`
-- `persistent`
+Include any of these keywords in your prompt:
+- `ralph:`, `@ralph`
+- `persistent:`
 - `don't give up`
 - `keep trying`
 
-**Failure Detection Patterns:**
+Keywords are detected via the compiled keyword registry (`dist/lib/keyword-registry`), with an inline fallback if `dist/` is not built.
+
+**Verification-Aware Completion (v2):**
+When the agent claims success, Ralph reads `verification.json` (written by `after-tool.js`). If verification shows errors, Ralph denies completion with the actual error in the retry message — even if the agent says "all done". This prevents premature completion when typecheck or lint is failing.
+
+**Stuck Protocol:**
+Tracks error signatures across retries. After `stuckThreshold` (default: 3) consecutive retries with the same error signature, Ralph emits an advisory message instructing the agent to document the blocker and move to the next task. The stuck protocol does NOT deny — it allows the agent to proceed.
+
+**Error-Aware Retry Messages:**
+When verification state is available, retry messages include the actual error:
 ```
-I'm stuck
-I cannot
-I'm unable
-failed to
-unable to complete
-can't figure out
+Ralph Mode (Attempt 2/5): Verification shows typecheck failing -- TS2339: Property 'x' does not exist. Try a different approach. 12 turns remaining.
 ```
 
-**Retry Strategies:**
-1. Break it down into smaller steps
-2. Check existing patterns in codebase
-3. Verify prerequisites
-4. Simplify first
-5. Read the errors carefully
-6. Check documentation
-7. Try a different approach
-8. Isolate the issue
+When verification is unavailable (e.g., research mode), falls back to generic suggestions (v1.0 behavior).
 
 **State Tracking:**
-Ralph maintains state in `.gemini/.ralph-state.json`:
+Ralph maintains session-scoped state in `.gemini/omg-state/{session}/ralph.json`:
 ```json
 {
   "attempts": 3,
-  "lastPrompt": "...",
-  "lastFailure": "...",
-  "approaches": ["Break it down", "Check existing patterns", "Simplify first"]
+  "lastTimestamp": "2026-03-01T10:00:00.000Z",
+  "lastErrorSignature": "typecheck failing -- TS2339",
+  "consecutiveSameError": 2,
+  "stuckItems": ["previous blocker description"]
 }
 ```
+
+On first access, automatically migrates from the old `.gemini/ralph-state.json` format if present.
+
+**Mode Integration:**
+Reads mode state via `readModeState()` from `dist/lib/mode-state`. When `autoVerification.enabled` is `false` for the active mode (e.g., research, plan), skips verification state reading and uses heuristic-only detection.
 
 **Configuration:**
 ```json
@@ -332,13 +382,22 @@ Ralph maintains state in `.gemini/.ralph-state.json`:
   "ralph": {
     "enabled": true,
     "maxRetries": 5,
+    "stuckThreshold": 3,
+    "suggestedSkill": "ralph-mode",
     "triggerPatterns": [
       "I'm stuck",
-      "failed to"
+      "I cannot",
+      "I'm unable",
+      "not possible",
+      "failed to",
+      "can't figure out",
+      "doesn't work"
     ]
   }
 }
 ```
+
+`stuckThreshold` is clamped to [2, 10]. `maxRetries` is clamped to [1, 20].
 
 ---
 
@@ -356,18 +415,23 @@ Configuration is loaded with cascading priority:
 
 ```json
 {
+  "modes": {
+    "enabled": true,
+    "default": "implement"
+  },
+
   "phaseGates": {
     "enabled": true,
     "strict": false
   },
-  
+
   "autoVerification": {
     "enabled": true,
     "typecheck": true,
     "lint": true,
     "timeout": 30000
   },
-  
+
   "security": {
     "gitCheckpoints": true,
     "blockedCommands": [
@@ -381,42 +445,55 @@ Configuration is loaded with cascading priority:
       "/etc"
     ]
   },
-  
+
   "toolFilter": {
     "enabled": true,
     "modes": {
-      "researcher": {
-        "allowed": ["google_web_search", "web_fetch", "read_file", "list_directory"]
+      "research": {
+        "allowed": ["google_web_search", "web_fetch", "read_file", "list_directory", "glob", "grep_search"]
       },
-      "architect": {
-        "allowed": ["read_file", "list_directory", "glob", "search_file_content"]
+      "review": {
+        "allowed": ["read_file", "list_directory", "glob", "grep_search"]
       },
-      "executor": {
+      "implement": {
         "allowed": "*"
+      },
+      "quickfix": {
+        "allowed": "*"
+      },
+      "plan": {
+        "allowed": ["read_file", "list_directory", "glob", "grep_search", "google_web_search", "web_fetch"]
       }
     }
   },
-  
+
   "ralph": {
     "enabled": true,
     "maxRetries": 5,
+    "stuckThreshold": 3,
+    "suggestedSkill": "ralph-mode",
     "triggerPatterns": [
       "I'm stuck",
       "I cannot",
-      "failed to"
+      "I'm unable",
+      "not possible",
+      "failed to",
+      "can't figure out",
+      "doesn't work"
     ]
   },
-  
+
   "contextInjection": {
+    "enabled": true,
     "conductorState": true,
     "gitHistory": {
       "enabled": true,
-      "onKeywords": ["fix", "bug", "error"],
+      "onKeywords": ["fix", "bug", "error", "issue", "broken", "crash"],
       "commitCount": 5
     },
     "recentChanges": {
       "enabled": true,
-      "onKeywords": ["continue", "resume"],
+      "onKeywords": ["continue", "resume", "where were we", "pick up", "last time"],
       "fileCount": 10
     }
   }
@@ -462,9 +539,16 @@ Configuration is loaded with cascading priority:
 
 ### Ralph Not Retrying
 
-1. Include "ralph" or "persistent" in your prompt
+1. Include `ralph:`, `@ralph`, or `persistent:` in your prompt
 2. Check `ralph.enabled` is true
 3. Verify failure patterns match your scenario
+4. Check `.gemini/omg-state/{session}/ralph.json` for state
+
+### Ralph Denying Correct Completions
+
+1. Check `.gemini/omg-state/{session}/verification.json` — if stale (> 5 min), it will be ignored
+2. Ensure typecheck and lint actually pass: `npm run typecheck && npm run lint`
+3. If in research/plan mode, verification is automatically skipped
 
 ---
 
@@ -563,6 +647,34 @@ If masking causes context loss, add `"toolOutputMasking": false` to `.gemini/set
 See `docs/decisions/masking-compatibility.md` for full investigation details.
 
 ## Changelog
+
+### v1.1.0 (Mode System + Enhanced Ralph)
+
+#### Magic Keywords & Keyword Registry (PRD 0004)
+- Replaced implicit regex mode detection with deterministic Magic Keywords
+- TypeScript keyword registry (`src/lib/keyword-registry.ts`) compiled via esbuild to `dist/`
+- `detectMagicKeywords()` and `detectRalphKeywords()` as pure, < 1ms functions
+- Deprecated `detectAgentMode()` in `hooks/lib/utils.js`
+
+#### Mode System Infrastructure (PRD 0003)
+- 5 primary modes: `research`, `implement`, `review`, `quickfix`, `plan`
+- 1 modifier: `eco` (reduces context injection, disables lint)
+- Per-session mode state persisted to `.gemini/omg-state/{session}/mode.json`
+- Mode profiles define tool access, verification intensity, context injection, phase gates
+- `composeModeProfile()` composes primary + modifiers with deep merge
+- All downstream hooks read mode state instead of re-detecting from prompt
+- Stale session cleanup (> 24h) on session start
+- `.gemini/.gitignore` auto-managed for `omg-state/`
+
+#### Enhanced Ralph v2 (PRD 0005)
+- Verification state reading: `after-tool.js` writes `verification.json`, `ralph-retry.js` reads it
+- Verification-aware completion: denies success claims when typecheck/lint fails
+- Stuck protocol: tracks error signatures, fires after `stuckThreshold` consecutive same-error retries
+- Error-aware retry messages with actual error details from verification state
+- Session-scoped Ralph state in `.gemini/omg-state/{session}/ralph.json`
+- Auto-migration from old `.gemini/ralph-state.json` format
+- `ralph-mode` skill for structured persistence guidance
+- Mode integration: skips verification in research/plan modes
 
 ### v1.0.0 (Published Extension Release)
 Includes all development milestones below.

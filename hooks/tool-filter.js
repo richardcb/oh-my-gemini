@@ -6,20 +6,21 @@
  * Fires: Before tool selection for agent
  *
  * Purpose:
- * - Detect current agent mode from prompt keywords (@researcher, @architect, etc.)
- * - Filter available tools based on the detected mode
+ * - Read persisted mode state (written by before-agent.js)
+ * - Filter available tools based on the composed mode profile
+ * - Support MCP tool passthrough for modes that allow it
+ *
+ * LIMITATION: BeforeToolSelection hooks use UNION aggregation. If multiple
+ * extensions contribute hooks, their allowedFunctionNames are merged (not
+ * intersected). OMG's tool restrictions can be bypassed by another extension.
+ * Subagent `tools` fields in .gemini/agents/*.md are the only reliable
+ * enforcement mechanism (not subject to union aggregation).
  *
  * WHY THIS HOOK EXISTS ALONGSIDE POLICIES:
  * Agent mode detection is dynamic — it reads the user's prompt at runtime to
- * detect keywords like @researcher, @architect, @executor, research:, design:,
- * debug:, implement:, build:, etc. This context-dependent logic cannot be
- * expressed in static TOML policies. The per-mode tool allowlists are defined
- * in omg-config.json (toolFilter.modes), not hardcoded here.
- *
- * NOTE: As of v0.31.0, tool annotation matching (#20029) and policy chains
- * (#19991) may enable migrating some of this logic to native TOML policies.
- * This hook remains for keyword-based mode detection which requires runtime
- * prompt inspection.
+ * detect keywords. This context-dependent logic cannot be expressed in static
+ * TOML policies. The per-mode tool allowlists are defined in mode profiles
+ * (mode-config.ts) with fallback to omg-config.json (toolFilter.modes).
  *
  * Input: { llm_request, session_id, cwd, ... }
  * Output: { hookSpecificOutput: { toolConfig: { mode?, allowedFunctionNames? } } }
@@ -33,10 +34,36 @@ const {
   log,
   debug,
   findProjectRoot,
-  detectAgentMode,
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+
+// Import mode state and config from compiled TypeScript (with fallback)
+let readModeState, composeModeProfile, getMetaTools;
+try {
+  const ms = require('../dist/lib/mode-state');
+  readModeState = ms.readModeState;
+  const mc = require('../dist/lib/mode-config');
+  composeModeProfile = mc.composeModeProfile;
+  getMetaTools = mc.getMetaTools;
+} catch (err) {
+  debug(`Failed to load mode-state/mode-config: ${err.message}. Falling back to config-only mode.`);
+  readModeState = null;
+  composeModeProfile = null;
+  getMetaTools = null;
+}
+
+/**
+ * Detect MCP tools from the tools list by the __ separator pattern.
+ * @param {object[]} tools - Array of tool declarations from LLM request
+ * @returns {string[]} Array of MCP tool names
+ */
+function detectMcpTools(tools) {
+  if (!Array.isArray(tools)) return [];
+  return tools
+    .map(t => t.name || (t.functionDeclarations && t.functionDeclarations[0] && t.functionDeclarations[0].name) || '')
+    .filter(name => name.includes('__'));
+}
 
 /**
  * Main hook logic
@@ -46,6 +73,7 @@ async function main() {
     const input = await readInput();
     const llmRequest = input.llm_request || {};
     const cwd = input.cwd || process.cwd();
+    const sessionId = input.session_id || 'default';
 
     log('ToolFilter hook fired');
     debug(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
@@ -63,46 +91,90 @@ async function main() {
       return;
     }
 
-    // Extract prompt from LLM request
-    const messages = llmRequest.messages || [];
-    const lastUserMessage = messages
-      .filter(m => m.role === 'user')
-      .pop();
+    // --- Read mode state (written by before-agent.js) ---
+    let mode = 'implement';
+    let modifiers = [];
+    let profile = null;
 
-    const prompt = lastUserMessage?.content || '';
+    if (readModeState && composeModeProfile) {
+      const modeState = readModeState(sessionId, projectRoot);
+      mode = modeState.primary;
+      modifiers = modeState.modifiers;
+      profile = composeModeProfile(mode, modifiers);
+      log(`Mode from state: ${mode}${modifiers.length ? '+' + modifiers.join('+') : ''}`);
+    } else {
+      // Fallback: use legacy config lookup
+      log('Mode state unavailable, using legacy config lookup');
+    }
 
-    // Detect agent mode dynamically from prompt keywords
-    const mode = detectAgentMode(prompt);
-    log(`Detected mode: ${mode}`);
+    // --- Determine tool access from profile or config ---
+    let tools = null;
 
-    // Get tool configuration for this mode from config
-    const toolFilterConfig = getConfigValue(config, 'toolFilter', {});
-    const modeConfig = toolFilterConfig.modes?.[mode];
+    if (profile) {
+      tools = profile.tools;
+    } else {
+      // Legacy: look up mode in toolFilter.modes config
+      const toolFilterConfig = getConfigValue(config, 'toolFilter', {});
+      const modeConfig = toolFilterConfig.modes?.[mode];
+      if (modeConfig) {
+        tools = modeConfig.allowed;
+      }
+    }
 
-    if (!modeConfig) {
-      log(`No tool config for mode: ${mode}`);
-      writeOutput({});
+    // If tools is "*" or null, no filtering needed
+    if (tools === '*' || tools === null) {
+      log(`Mode: ${mode} — no tool filtering (tools: ${tools === null ? 'null/native' : '"*"'})`);
+      writeOutput({
+        hookSpecificOutput: {
+          toolConfig: { mode: 'AUTO' }
+        }
+      });
       return;
     }
 
-    // Build output
-    // Gemini API toolConfig.mode must be AUTO, ANY, or NONE.
-    // - ANY forces tool calls on every turn (no text responses), causing loops.
-    // - allowedFunctionNames is only valid with ANY mode.
-    // Therefore we always use AUTO and log the detected mode for informational
-    // purposes. Tool restriction via allowedFunctionNames is not feasible with
-    // the current Gemini API without causing infinite tool-call loops.
-    const output = {
-      hookSpecificOutput: {
-        toolConfig: {
-          mode: 'AUTO'
+    // If tools is an array, build allowedFunctionNames
+    if (Array.isArray(tools)) {
+      const allowed = [...tools];
+
+      // Always include meta-tools
+      const metaTools = getMetaTools ? getMetaTools() : [
+        'delegate_to_agent', 'ask_user', 'activate_skill',
+        'save_memory', 'write_todos', 'get_internal_docs'
+      ];
+      for (const mt of metaTools) {
+        if (!allowed.includes(mt)) allowed.push(mt);
+      }
+
+      // MCP passthrough: if enabled, detect and include MCP tools
+      if (profile && profile.mcpPassthrough) {
+        const allTools = llmRequest.tools || llmRequest.function_declarations || [];
+        const mcpTools = detectMcpTools(allTools);
+        for (const mcp of mcpTools) {
+          if (!allowed.includes(mcp)) allowed.push(mcp);
+        }
+        if (mcpTools.length > 0) {
+          debug(`MCP passthrough: added ${mcpTools.length} MCP tool(s)`);
         }
       }
-    };
 
-    log(`Agent mode: ${mode} (tools: ${modeConfig.allowed === '*' ? 'all' : modeConfig.allowed.join(', ')})`);
+      log(`Mode: ${mode} — filtering tools: ${allowed.join(', ')}`);
 
-    writeOutput(output);
+      // Note: Gemini API's toolConfig.mode AUTO with allowedFunctionNames
+      // uses UNION aggregation across hooks. We set it for advisory purposes.
+      writeOutput({
+        hookSpecificOutput: {
+          toolConfig: {
+            mode: 'AUTO',
+            allowedFunctionNames: allowed
+          }
+        }
+      });
+      return;
+    }
+
+    // Invalid tools type — log and skip filtering
+    log(`Mode: ${mode} — unexpected tools type: ${typeof tools}, skipping filter`);
+    writeOutput({});
   } catch (err) {
     log(`ToolFilter hook error: ${err.message}`);
     // Don't fail the hook

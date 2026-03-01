@@ -1,6 +1,14 @@
 ---
+# Requires experimental.enableAgents: true in settings.json for delegate_to_agent routing
 name: researcher
-description: Deep research agent powered by web search. Finds documentation, examples, best practices, and external context. Returns structured research briefs.
+description: |
+  Deep research agent for finding documentation, exploring APIs, and understanding
+  concepts. Use when the user needs external context before making decisions.
+  Examples:
+  - "What's the best way to handle JWT refresh tokens in Express?"
+  - "Find documentation on Gemini CLI's hook system"
+  - "Research best practices for database connection pooling"
+  - "How does React Server Components work?"
 model: gemini-3.1-pro-preview
 tools:
   - web_fetch

@@ -17,10 +17,13 @@
  */
 
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const {
   readInput,
   writeOutput,
   log,
+  debug,
   findProjectRoot,
   loadSessionOrGlobalPlan,
   isGitRepo,
@@ -28,6 +31,50 @@ const {
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled } = require('./lib/config');
+
+// Import mode state for stale cleanup
+let cleanStaleState;
+try {
+  const ms = require('../dist/lib/mode-state');
+  cleanStaleState = ms.cleanStaleState;
+} catch (err) {
+  debug(`Failed to load mode-state: ${err.message}. Stale cleanup skipped.`);
+  cleanStaleState = null;
+}
+
+/**
+ * Ensure .gemini/.gitignore contains omg-state/ entry.
+ * Creates the file if missing; appends if entry not present.
+ * @param {string} projectRoot - Project root directory
+ */
+function ensureOmgStateGitignored(projectRoot) {
+  const gitignorePath = path.join(projectRoot, '.gemini', '.gitignore');
+
+  try {
+    const geminiDir = path.join(projectRoot, '.gemini');
+    if (!fs.existsSync(geminiDir)) {
+      // No .gemini dir, nothing to gitignore
+      return;
+    }
+
+    if (fs.existsSync(gitignorePath)) {
+      const content = fs.readFileSync(gitignorePath, 'utf8');
+      if (content.includes('omg-state/')) {
+        return; // Already present
+      }
+      // Append
+      const separator = content.endsWith('\n') ? '' : '\n';
+      fs.writeFileSync(gitignorePath, content + separator + 'omg-state/\n', 'utf8');
+      debug('ensureOmgStateGitignored: appended omg-state/ to .gemini/.gitignore');
+    } else {
+      // Create
+      fs.writeFileSync(gitignorePath, 'omg-state/\n', 'utf8');
+      debug('ensureOmgStateGitignored: created .gemini/.gitignore with omg-state/');
+    }
+  } catch (err) {
+    log(`ensureOmgStateGitignored: failed: ${err.message}`);
+  }
+}
 
 /**
  * Format progress bar
@@ -77,6 +124,23 @@ function buildFullContext(sessionId, projectRoot, config) {
 
       conductorSummary = `Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
     }
+  }
+
+  // --- Subagent Routing Prerequisite Check ---
+  try {
+    const homeDir = os.homedir();
+    const settingsPath = path.join(homeDir, '.gemini', 'settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      const agentsEnabled = settings?.experimental?.enableAgents;
+      if (!agentsEnabled) {
+        additionalContext += '## Subagent Routing\n';
+        additionalContext += '**Warning:** Native subagent routing is not enabled. Add `{ "experimental": { "enableAgents": true } }` to your Gemini CLI settings.json to enable delegate_to_agent routing to custom agents.\n\n';
+      }
+    }
+  } catch (err) {
+    // Silently skip — missing or unparseable settings.json is fine
+    debug(`Settings check skipped: ${err.message}`);
   }
 
   // --- Git Status ---
@@ -138,6 +202,22 @@ async function main() {
     // Load configuration
     const config = loadConfig(projectRoot);
 
+    // --- Gitignore and stale cleanup (fresh sessions only) ---
+    if (sessionType !== 'resume') {
+      ensureOmgStateGitignored(projectRoot);
+
+      if (cleanStaleState) {
+        try {
+          const cleaned = cleanStaleState(projectRoot);
+          if (cleaned > 0) {
+            log(`Cleaned ${cleaned} stale mode state session(s)`);
+          }
+        } catch (err) {
+          log(`Stale state cleanup failed: ${err.message}`);
+        }
+      }
+    }
+
     // Build context based on session type
     const output = {};
     let systemMessage = '';
@@ -160,12 +240,12 @@ async function main() {
 
       if (sessionType === 'clear') {
         systemMessage = conductorSummary
-          ? `Context cleared | ${conductorSummary}`
-          : 'Context cleared';
+          ? `Context cleared | Modes: keyword-driven | ${conductorSummary}`
+          : 'Context cleared | Modes: keyword-driven';
       } else {
         systemMessage = conductorSummary
-          ? `oh-my-gemini ready | ${conductorSummary}`
-          : 'oh-my-gemini ready';
+          ? `oh-my-gemini ready | Modes: keyword-driven | ${conductorSummary}`
+          : 'oh-my-gemini ready | Modes: keyword-driven';
       }
     }
 

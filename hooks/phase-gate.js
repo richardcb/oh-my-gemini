@@ -29,6 +29,19 @@ const {
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
 
+// Import mode state for mode-aware phase gates
+let readModeState, composeModeProfile;
+try {
+  const ms = require('../dist/lib/mode-state');
+  readModeState = ms.readModeState;
+  const mc = require('../dist/lib/mode-config');
+  composeModeProfile = mc.composeModeProfile;
+} catch (err) {
+  debug(`Failed to load mode-state/mode-config: ${err.message}. Using config-only phase gates.`);
+  readModeState = null;
+  composeModeProfile = null;
+}
+
 /**
  * Parse phases from plan content.
  * Only matches headers that explicitly contain "Phase" (e.g., "## Phase 1: Data Layer")
@@ -153,6 +166,19 @@ async function main() {
       log('Phase gates are disabled');
       writeOutput({});
       return;
+    }
+
+    // Mode-aware: only fire for modes with phaseGates.enabled (implement by default)
+    if (readModeState && composeModeProfile) {
+      const sessionId = input.session_id || 'default';
+      const modeState = readModeState(sessionId, projectRoot);
+      const profile = composeModeProfile(modeState.primary, modeState.modifiers);
+
+      if (profile.phaseGates && profile.phaseGates.enabled === false) {
+        log(`Mode ${modeState.primary}: phase gates disabled, skipping`);
+        writeOutput({});
+        return;
+      }
     }
 
     // Load plan state: session-specific first, then global Conductor

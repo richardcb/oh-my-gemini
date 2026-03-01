@@ -1,9 +1,9 @@
 ---
 name: code-review
 description: |
-  Perform thorough code review of implemented features. Compares implementation against
-  the technical plan, checks for AI-specific risks, and provides actionable feedback.
-  v1.0: Auto-verification handled by hooks - focus on higher-level review.
+  Perform thorough code review and audit of implemented features. Compares implementation
+  against the technical plan, checks for AI-specific risks, and provides actionable feedback.
+  Activate for: review, audit, code quality assessment, security review.
 ---
 
 # Code Review Skill
