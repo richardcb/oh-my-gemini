@@ -345,6 +345,173 @@ function findCurrentTask(planContent) {
   return null;
 }
 
+// Phase parsing (extracted from phase-gate.js for shared use)
+
+/**
+ * Parse phases from plan content.
+ * Only matches headers that explicitly contain "Phase" (e.g., "## Phase 1: Data Layer")
+ * or match one of the configured phase names. Generic headers like "## Notes" are ignored.
+ * @param {string} planContent - Plan markdown content
+ * @param {string[]} configuredPhases - Phase names from config (e.g., ['data-layer', 'backend', ...])
+ * @returns {object[]} Array of phase objects with name, tasks, completed, total
+ */
+function parsePhases(planContent, configuredPhases = []) {
+  if (!planContent) return [];
+
+  const phases = [];
+  const lines = planContent.split('\n');
+
+  // Build a set of lowercase configured phase names for fast lookup
+  const knownPhases = new Set(configuredPhases.map(p => p.toLowerCase()));
+
+  let currentPhase = null;
+
+  for (const line of lines) {
+    // Primary: match explicit "Phase N:" headers — e.g., "## Phase 1: Data Layer"
+    const explicitMatch = line.match(/^#{2,3}\s*Phase\s*\d+[:\s]+(.+)/i);
+    if (explicitMatch) {
+      if (currentPhase) {
+        phases.push(currentPhase);
+      }
+      currentPhase = {
+        name: explicitMatch[1].trim(),
+        tasks: [],
+        completed: 0,
+        total: 0
+      };
+      continue;
+    }
+
+    // Fallback: match H2/H3 headers whose text matches a configured phase name
+    if (knownPhases.size > 0) {
+      const headerMatch = line.match(/^#{2,3}\s+(.+)/);
+      if (headerMatch) {
+        const headerText = headerMatch[1].trim().toLowerCase();
+        // Check if this header matches any configured phase name (case-insensitive, partial)
+        const isKnown = [...knownPhases].some(p =>
+          headerText.includes(p) || p.includes(headerText)
+        );
+        if (isKnown) {
+          if (currentPhase) {
+            phases.push(currentPhase);
+          }
+          currentPhase = {
+            name: headerMatch[1].trim(),
+            tasks: [],
+            completed: 0,
+            total: 0
+          };
+          continue;
+        }
+      }
+    }
+
+    // Match tasks within phase
+    if (currentPhase) {
+      const taskMatch = line.match(/^[\s]*-\s*\[([ xX])\]\s*(.+)$/);
+      if (taskMatch) {
+        const isComplete = taskMatch[1].toLowerCase() === 'x';
+        currentPhase.tasks.push({
+          text: taskMatch[2].trim(),
+          completed: isComplete
+        });
+        currentPhase.total++;
+        if (isComplete) {
+          currentPhase.completed++;
+        }
+      }
+    }
+  }
+
+  // Don't forget the last phase
+  if (currentPhase) {
+    phases.push(currentPhase);
+  }
+
+  return phases;
+}
+
+/**
+ * Find the index and data of the current phase (first incomplete phase).
+ * @param {object[]} phases - Array of phase objects
+ * @returns {{ index: number, phase: object } | null}
+ */
+function findCurrentPhase(phases) {
+  for (let i = 0; i < phases.length; i++) {
+    if (phases[i].completed < phases[i].total) {
+      return { index: i, phase: phases[i] };
+    }
+  }
+  // All complete -- return the last phase
+  if (phases.length > 0) {
+    return { index: phases.length - 1, phase: phases[phases.length - 1] };
+  }
+  return null;
+}
+
+/**
+ * Find the current phase and task with structural context.
+ * Composes parsePhases + findCurrentPhase + task lookup.
+ * @param {string} planContent - Plan markdown content
+ * @param {string[]} configuredPhases - Phase names from config
+ * @returns {object|null} { phaseName, phaseIndex, totalPhases, phaseRemaining, taskText } or null
+ */
+function findCurrentPhaseAndTask(planContent, configuredPhases) {
+  if (!planContent) return null;
+
+  const phases = parsePhases(planContent, configuredPhases);
+  if (phases.length === 0) return null;
+
+  const current = findCurrentPhase(phases);
+  if (!current) return null;
+
+  const { index, phase } = current;
+  const remaining = phase.total - phase.completed;
+
+  // Find first unchecked task in current phase
+  const nextTask = phase.tasks.find(t => !t.completed);
+  if (!nextTask) return null;
+
+  return {
+    phaseName: phase.name,
+    phaseIndex: index,
+    totalPhases: phases.length,
+    phaseRemaining: remaining,
+    taskText: nextTask.text
+  };
+}
+
+/**
+ * Extract file path references from markdown content.
+ * Matches backtick-quoted paths and bare paths with known directory prefixes.
+ * Exported for PRD 0007 (Conductor Memory System) checksumFiles: "auto" mode.
+ * @param {string} content - Markdown content (typically spec.md or plan.md)
+ * @returns {string[]} Deduplicated array of file paths (forward-slash normalized)
+ */
+function extractFileReferences(content) {
+  if (!content) return [];
+
+  const paths = [];
+
+  // Backtick-quoted paths with file extensions
+  const backtickRegex = /`([a-zA-Z0-9_./\\-]+\.[a-zA-Z]{1,10})`/g;
+  let match;
+  while ((match = backtickRegex.exec(content)) !== null) {
+    paths.push(match[1]);
+  }
+
+  // Bare paths with known directory prefixes
+  const barePrefixes = 'src|hooks|lib|dist|test|tests|scripts|conductor|skills|docs|policies|config';
+  const bareRegex = new RegExp(`(?:^|\\s)((?:${barePrefixes})\\/[a-zA-Z0-9_./\\\\-]+\\.[a-zA-Z]{1,10})`, 'gm');
+  while ((match = bareRegex.exec(content)) !== null) {
+    paths.push(match[1]);
+  }
+
+  // Normalize to forward slashes and deduplicate
+  const normalized = paths.map(p => p.replace(/\\/g, '/'));
+  return [...new Set(normalized)];
+}
+
 /**
  * Detect agent mode from prompt content.
  * @deprecated Use detectMagicKeywords() from dist/lib/keyword-registry instead.
@@ -594,6 +761,12 @@ module.exports = {
   loadSessionOrGlobalPlan,
   calculateProgress,
   findCurrentTask,
+
+  // Phase parsing
+  parsePhases,
+  findCurrentPhase,
+  findCurrentPhaseAndTask,
+  extractFileReferences,
   
   // Agent detection
   detectAgentMode,

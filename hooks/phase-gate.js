@@ -25,6 +25,8 @@ const {
   debug,
   findProjectRoot,
   loadSessionOrGlobalPlan,
+  parsePhases,
+  findCurrentPhase,
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
@@ -40,108 +42,6 @@ try {
   debug(`Failed to load mode-state/mode-config: ${err.message}. Using config-only phase gates.`);
   readModeState = null;
   composeModeProfile = null;
-}
-
-/**
- * Parse phases from plan content.
- * Only matches headers that explicitly contain "Phase" (e.g., "## Phase 1: Data Layer")
- * or match one of the configured phase names. Generic headers like "## Notes" are ignored.
- * @param {string} planContent - Plan markdown content
- * @param {string[]} configuredPhases - Phase names from config (e.g., ['data-layer', 'backend', ...])
- * @returns {object[]} Array of phase objects with name, tasks, completed, total
- */
-function parsePhases(planContent, configuredPhases = []) {
-  if (!planContent) return [];
-
-  const phases = [];
-  const lines = planContent.split('\n');
-
-  // Build a set of lowercase configured phase names for fast lookup
-  const knownPhases = new Set(configuredPhases.map(p => p.toLowerCase()));
-
-  let currentPhase = null;
-
-  for (const line of lines) {
-    // Primary: match explicit "Phase N:" headers — e.g., "## Phase 1: Data Layer"
-    const explicitMatch = line.match(/^#{2,3}\s*Phase\s*\d+[:\s]+(.+)/i);
-    if (explicitMatch) {
-      if (currentPhase) {
-        phases.push(currentPhase);
-      }
-      currentPhase = {
-        name: explicitMatch[1].trim(),
-        tasks: [],
-        completed: 0,
-        total: 0
-      };
-      continue;
-    }
-
-    // Fallback: match H2/H3 headers whose text matches a configured phase name
-    if (knownPhases.size > 0) {
-      const headerMatch = line.match(/^#{2,3}\s+(.+)/);
-      if (headerMatch) {
-        const headerText = headerMatch[1].trim().toLowerCase();
-        // Check if this header matches any configured phase name (case-insensitive, partial)
-        const isKnown = [...knownPhases].some(p =>
-          headerText.includes(p) || p.includes(headerText)
-        );
-        if (isKnown) {
-          if (currentPhase) {
-            phases.push(currentPhase);
-          }
-          currentPhase = {
-            name: headerMatch[1].trim(),
-            tasks: [],
-            completed: 0,
-            total: 0
-          };
-          continue;
-        }
-      }
-    }
-
-    // Match tasks within phase
-    if (currentPhase) {
-      const taskMatch = line.match(/^[\s]*-\s*\[([ xX])\]\s*(.+)$/);
-      if (taskMatch) {
-        const isComplete = taskMatch[1].toLowerCase() === 'x';
-        currentPhase.tasks.push({
-          text: taskMatch[2].trim(),
-          completed: isComplete
-        });
-        currentPhase.total++;
-        if (isComplete) {
-          currentPhase.completed++;
-        }
-      }
-    }
-  }
-
-  // Don't forget the last phase
-  if (currentPhase) {
-    phases.push(currentPhase);
-  }
-
-  return phases;
-}
-
-/**
- * Find the index and data of the current phase (first incomplete phase).
- * @param {object[]} phases - Array of phase objects
- * @returns {{ index: number, phase: object } | null}
- */
-function findCurrentPhase(phases) {
-  for (let i = 0; i < phases.length; i++) {
-    if (phases[i].completed < phases[i].total) {
-      return { index: i, phase: phases[i] };
-    }
-  }
-  // All complete -- return the last phase
-  if (phases.length > 0) {
-    return { index: phases.length - 1, phase: phases[phases.length - 1] };
-  }
-  return null;
 }
 
 /**

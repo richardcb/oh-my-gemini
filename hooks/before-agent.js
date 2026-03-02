@@ -24,8 +24,9 @@ const {
   log,
   debug,
   findProjectRoot,
-  loadConductorState,
+  loadSessionOrGlobalPlan,
   findCurrentTask,
+  findCurrentPhaseAndTask,
   runGitCommand,
   getRecentCommits,
   getRecentlyChangedFiles,
@@ -126,6 +127,9 @@ async function main() {
       debug('Ralph keywords detected — will suggest ralph-mode skill');
     }
 
+    // Load Conductor state once (used by both context injection and plan-mode check)
+    const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+
     // --- Context Injection (mode-profile-aware) ---
     if (isFeatureEnabled(config, 'contextInjection')) {
       // Determine context injection behavior from mode profile or config
@@ -176,21 +180,36 @@ async function main() {
       // Conductor State Injection
       const profileConductor = ciProfile ? ciProfile.conductorState : true;
       if (profileConductor !== false && getConfigValue(config, 'contextInjection.conductorState', true)) {
-        const conductor = loadConductorState(projectRoot);
         if (conductor && conductor.active) {
           if (profileConductor === 'summary') {
             // Summary only (eco mode, research mode)
             additionalContext += `Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)\n\n`;
             log(`Injected Conductor summary: ${conductor.trackName}`);
           } else {
-            // Full context
-            const currentTask = findCurrentTask(conductor.plan);
-            if (currentTask) {
+            // Full context — try phase-aware first, fall back to task-only
+            const configuredPhases = getConfigValue(config, 'phaseGates.phases', []);
+            const phaseTask = findCurrentPhaseAndTask(conductor.plan, configuredPhases);
+            const planLabel = conductor.source === 'global' ? 'global track' : 'session-specific';
+
+            if (phaseTask) {
               additionalContext += '## Current Conductor Task\n';
               additionalContext += `**Track:** ${conductor.trackName}\n`;
-              additionalContext += `**Task:** ${currentTask}\n`;
-              additionalContext += `**Progress:** ${conductor.progress.completed}/${conductor.progress.total} (${conductor.progress.percentage}%)\n\n`;
-              log(`Injected Conductor context: ${conductor.trackName}`);
+              additionalContext += `**Plan:** ${planLabel}\n`;
+              additionalContext += `**Phase:** ${phaseTask.phaseName} (${phaseTask.phaseIndex + 1}/${phaseTask.totalPhases})\n`;
+              additionalContext += `**Task:** ${phaseTask.taskText}\n`;
+              additionalContext += `**Progress:** ${conductor.progress.completed}/${conductor.progress.total} (${conductor.progress.percentage}%) — ${phaseTask.phaseRemaining} remaining in phase\n\n`;
+              log(`Injected Conductor context with phase: ${conductor.trackName} / ${phaseTask.phaseName}`);
+            } else {
+              // Fallback: plan has no phase headers or all phases complete
+              const currentTask = findCurrentTask(conductor.plan);
+              if (currentTask) {
+                additionalContext += '## Current Conductor Task\n';
+                additionalContext += `**Track:** ${conductor.trackName}\n`;
+                additionalContext += `**Plan:** ${planLabel}\n`;
+                additionalContext += `**Task:** ${currentTask}\n`;
+                additionalContext += `**Progress:** ${conductor.progress.completed}/${conductor.progress.total} (${conductor.progress.percentage}%)\n\n`;
+                log(`Injected Conductor context (no phases): ${conductor.trackName}`);
+              }
             }
           }
         }
@@ -199,7 +218,6 @@ async function main() {
 
     // --- Plan mode + Conductor awareness (M-2) ---
     if (mode === 'plan') {
-      const conductor = loadConductorState(projectRoot);
       if (conductor && conductor.active) {
         additionalContext += '[omg:mode] plan mode active. An active Conductor track exists — using Conductor\'s planning phase. Native plan mode deferred.\n\n';
       }

@@ -26,6 +26,7 @@ const {
   debug,
   findProjectRoot,
   loadSessionOrGlobalPlan,
+  findCurrentTask,
   isGitRepo,
   hasUncommittedChanges,
   platform
@@ -117,7 +118,7 @@ function buildFullContext(sessionId, projectRoot, config) {
       additionalContext += `**Progress:** ${formatProgressBar(conductor.progress.percentage)}\n`;
       additionalContext += `**Tasks:** ${conductor.progress.completed}/${conductor.progress.total} completed\n\n`;
 
-      const currentTask = conductor.plan ? findCurrentTaskFromPlan(conductor.plan) : null;
+      const currentTask = conductor.plan ? findCurrentTask(conductor.plan) : null;
       if (currentTask) {
         additionalContext += `**Current Task:** ${currentTask}\n\n`;
       }
@@ -259,27 +260,6 @@ async function main() {
     // Don't fail the hook - just output empty response
     writeOutput({});
   }
-}
-
-/**
- * Find the current task from plan content
- * @param {string} planContent - Plan markdown content
- * @returns {string|null} Current task or null
- */
-function findCurrentTaskFromPlan(planContent) {
-  if (!planContent) return null;
-  
-  const lines = planContent.split('\n');
-  
-  for (const line of lines) {
-    // Match uncompleted task: - [ ] Task text
-    const match = line.match(/^[\s]*-\s*\[\s\]\s*(.+)$/);
-    if (match) {
-      return match[1].trim();
-    }
-  }
-  
-  return null;
 }
 
 main();

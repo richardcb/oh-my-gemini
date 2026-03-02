@@ -40,7 +40,7 @@ The hook now attempts to load a session-specific plan before falling back to the
 2. `.gemini/memory/sessions/{session_id}/plan.md`
 3. `.gemini/plans/{session_id}.md`
 
-If no session plan is found, falls back to `loadConductorState()` (global).
+If no session plan is found, falls back to the global Conductor state.
 
 **Stale State Cleanup:**
 On each session start, calls `cleanStaleState()` from `dist/lib/mode-state` to remove session directories in `.gemini/omg-state/` older than 24 hours. This prevents unbounded growth of mode, verification, and Ralph state files.
@@ -72,16 +72,31 @@ oh-my-gemini ready | Modes: keyword-driven | Conductor: User Authentication (45%
 **Mode Resolution:**
 Calls `resolveModeFromPrompt(prompt)` from the compiled keyword registry (`dist/lib/mode-state`). If `dist/` is not built, falls back to `detectMagicKeywords()` with stub defaults. The resolved mode state is written to `.gemini/omg-state/{session}/mode.json` for all downstream hooks to read.
 
+**Session-Aware Conductor Loading:**
+Uses `loadSessionOrGlobalPlan()` to check for session-specific plans before falling back to the global Conductor track. This ensures consistency with `session-start.js` and `phase-gate.js`.
+
+**Phase-Aware Context Injection:**
+When a Conductor plan has phase headers (`## Phase N: ...`), the injected context includes the current phase name and position:
+```
+## Current Conductor Task
+**Track:** backend-api
+**Plan:** global track
+**Phase:** Backend API (2/4)
+**Task:** Implement user authentication endpoint
+**Progress:** 3/12 (25%) — 4 remaining in phase
+```
+When the plan has no phase headers, falls back to flat task injection (v1.0 behavior).
+
 **Mode-Aware Context Injection:**
 Each mode profile defines context injection behavior:
 
 | Mode | Git History | Conductor State | Recent Changes |
 |------|------------|-----------------|----------------|
 | `research` | Disabled | Summary only | Disabled |
-| `implement` | Keyword-triggered | Full | Enabled |
+| `implement` | Keyword-triggered | Full (phase-aware) | Enabled |
 | `review` | Always | Summary only | Disabled |
 | `quickfix` | Keyword-triggered | Disabled | Disabled |
-| `plan` | Disabled | Full | Disabled |
+| `plan` | Disabled | Full (phase-aware) | Disabled |
 | `eco` (modifier) | Disabled | Summary only | Disabled |
 
 **Skill Suggestions:**
@@ -300,9 +315,10 @@ This file is read by `ralph-retry.js` to validate agent success claims against a
 **Fires:** After every agent response
 
 **Purpose:**
-- Detect Conductor phase completion
+- Parse plan phases and detect current phase progress
 - Inject advisory guidance via `systemMessage`
 - Session-aware plan loading
+- Uses shared `parsePhases()` and `findCurrentPhase()` from `hooks/lib/utils.js`
 
 **Verification Mode:**
 
@@ -647,6 +663,17 @@ If masking causes context loss, add `"toolOutputMasking": false` to `.gemini/set
 See `docs/decisions/masking-compatibility.md` for full investigation details.
 
 ## Changelog
+
+### v1.2.0 (Surgical Context Injection)
+
+#### Surgical Context Injection (PRD 0006)
+- Phase-aware Conductor injection in `before-agent.js`: injects current phase name, position, and remaining tasks alongside the task text
+- Session-aware Conductor loading in `before-agent.js`: switched from `loadConductorState()` to `loadSessionOrGlobalPlan()` for consistency with other hooks
+- Shared phase parsing: extracted `parsePhases()` and `findCurrentPhase()` from `phase-gate.js` to `hooks/lib/utils.js`
+- New `findCurrentPhaseAndTask()` in `utils.js`: composes phase parsing + task lookup for per-turn injection
+- New `extractFileReferences()` in `utils.js`: regex-based file path extraction from markdown (foundation for PRD 0007)
+- Deduplicated `findCurrentTaskFromPlan()` in `session-start.js` — now uses shared `findCurrentTask()` from `utils.js`
+- Fallback behavior preserved: plans without phase headers still get v1.0-style flat task injection
 
 ### v1.1.0 (Mode System + Enhanced Ralph)
 
