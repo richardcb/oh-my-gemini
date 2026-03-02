@@ -664,7 +664,7 @@ See `docs/decisions/masking-compatibility.md` for full investigation details.
 
 ## Changelog
 
-### v1.1.x (Surgical Context Injection)
+### v1.2.0 (Surgical Context Injection)
 
 #### Surgical Context Injection (PRD 0006)
 - Phase-aware Conductor injection in `before-agent.js`: injects current phase name, position, and remaining tasks alongside the task text
