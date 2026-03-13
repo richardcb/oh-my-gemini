@@ -50,22 +50,47 @@ function jsonResponse(res, statusCode, payload) {
 async function readJsonBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
+    let settled = false;
+
+    const safeResolve = (value) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    const safeReject = (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    };
+
     req.setEncoding('utf8');
+
     req.on('data', chunk => {
+      if (settled) {
+        return;
+      }
       data += chunk;
       if (data.length > 1024 * 1024) {
-        reject(new Error('Request body too large'));
+        safeReject(new Error('Request body too large'));
+        // Stop reading further data to avoid memory/CPU DoS
+        req.destroy();
       }
     });
+
     req.on('end', () => {
-      if (!data) return resolve({});
+      if (settled) {
+        return;
+      }
+      if (!data) return safeResolve({});
       try {
-        resolve(JSON.parse(data));
+        safeResolve(JSON.parse(data));
       } catch (err) {
-        reject(new Error(`Invalid JSON body: ${err.message}`));
+        safeReject(new Error(`Invalid JSON body: ${err.message}`));
       }
     });
-    req.on('error', reject);
+
+    req.on('error', safeReject);
   });
 }
 
