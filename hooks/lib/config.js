@@ -138,6 +138,15 @@ const DEFAULT_CONFIG = {
       fileCount: 10
     }
   },
+
+  memory: {
+    enabled: true,
+    dbPath: '~/.oh-my-gemini/memory.db',
+    mcpPort: 37888,
+    maxObservationsPerTrack: 500,
+    checksumFiles: 'auto',
+    autoStart: true
+  },
   
   modes: {
     enabled: true,
@@ -240,6 +249,9 @@ function loadConfig(projectRoot) {
   config.ralph.stuckThreshold = Math.max(2, Math.min(config.ralph.stuckThreshold || 3, 10));
   config.autoVerification = config.autoVerification || {};
   config.autoVerification.timeout = Math.min(config.autoVerification.timeout || 30000, 120000);
+  config.memory = config.memory || {};
+  config.memory.mcpPort = Math.max(1024, Math.min(config.memory.mcpPort || 37888, 65535));
+  config.memory.maxObservationsPerTrack = Math.max(100, Math.min(config.memory.maxObservationsPerTrack || 500, 5000));
 
   return config;
 }
@@ -281,6 +293,15 @@ function validateConfig(config) {
       if (settings.allowed !== '*' && !Array.isArray(settings.allowed)) {
         errors.push(`toolFilter.modes.${mode}.allowed must be '*' or an array`);
       }
+    }
+  }
+
+  // Validate memory config
+  if (config.memory) {
+    if (config.memory.checksumFiles !== undefined &&
+        typeof config.memory.checksumFiles !== 'string' &&
+        !Array.isArray(config.memory.checksumFiles)) {
+      errors.push('memory.checksumFiles must be a string or an array');
     }
   }
   

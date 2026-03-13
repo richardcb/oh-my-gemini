@@ -33,9 +33,11 @@ const {
   log,
   debug,
   findProjectRoot,
+  loadSessionOrGlobalPlan,
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+const { initDatabase, closeDatabase, writeObservation } = require('./lib/memory');
 
 // Import keyword registry for Ralph keyword detection (with fallback)
 let detectRalphKeywordsFromRegistry;
@@ -455,6 +457,35 @@ async function main() {
 
     // Load configuration
     const config = loadConfig(projectRoot);
+    const memoryConfig = getConfigValue(config, 'memory', {});
+
+    const writeRalphMemoryObservation = (type, content) => {
+      if (!isFeatureEnabled(config, 'memory')) {
+        return;
+      }
+      try {
+        const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+        if (!conductor || !conductor.active) {
+          return;
+        }
+        const db = initDatabase(memoryConfig.dbPath);
+        try {
+          writeObservation(db, {
+            track_id: conductor.trackName,
+            type,
+            agent_role: 'main',
+            content,
+            created_at: new Date().toISOString()
+          }, {
+            maxObservationsPerTrack: memoryConfig.maxObservationsPerTrack
+          });
+        } finally {
+          closeDatabase(db);
+        }
+      } catch (memoryErr) {
+        log(`Ralph memory write skipped: ${memoryErr.message}`);
+      }
+    };
 
     // Check if ralph mode is enabled in config
     if (!isFeatureEnabled(config, 'ralph')) {
@@ -548,6 +579,12 @@ async function main() {
 
           if (stuckCheck.isStuck) {
             log('Stuck protocol triggered on verification-denied success claim');
+            writeRalphMemoryObservation('stuck_escalation', {
+              signature: errorSig,
+              attempts: ralphState.attempts,
+              stuckThreshold,
+              recommendation: 'Document blocker and move to next task'
+            });
             const stuckItemsNote = ralphState.stuckItems.length > 0
               ? `\nPreviously stuck on: ${ralphState.stuckItems.slice(-10).join(', ')}`
               : '';
@@ -588,6 +625,12 @@ async function main() {
             : '';
           const retryReason = `Ralph Mode (Attempt ${ralphState.attempts}/${maxRetries}): Verification shows ${vState.errorSummary.substring(0, 500)}. Try a different approach. ${budgetNote}.${stuckItemsContext}`;
           log(`Verification-denied success: ${vState.errorCount} errors`);
+          writeRalphMemoryObservation('retry_attempt', {
+            signature: errorSig,
+            retryCount: ralphState.attempts,
+            maxRetries,
+            reason: retryReason
+          });
           writeOutput({
             decision: 'deny',
             reason: retryReason
@@ -679,6 +722,12 @@ async function main() {
 
     if (stuckCheck.isStuck) {
       log('Stuck protocol triggered');
+      writeRalphMemoryObservation('stuck_escalation', {
+        signature: currentErrorSignature,
+        attempts: ralphState.attempts,
+        stuckThreshold,
+        recommendation: 'Document blocker and move to next task'
+      });
       const stuckItemsNote = ralphState.stuckItems.length > 0
         ? `\nPreviously stuck on: ${ralphState.stuckItems.slice(-10).join(', ')}`
         : '';
@@ -710,6 +759,12 @@ async function main() {
     }
 
     log(`Forcing retry: attempt ${ralphState.attempts}/${maxRetries} (${budgetNote})`);
+    writeRalphMemoryObservation('retry_attempt', {
+      signature: currentErrorSignature,
+      retryCount: ralphState.attempts,
+      maxRetries,
+      reason: retryReason
+    });
 
     writeOutput({
       decision: 'deny',

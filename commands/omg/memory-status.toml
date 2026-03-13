@@ -1,0 +1,28 @@
+# /omg:memory-status - Show memory summary for current track
+
+description = "Show memory status: observation totals, type breakdown, last session, and db size."
+
+prompt = """
+You are reporting Conductor memory status.
+
+## Required output
+- Track name
+- Total observations
+- Observations by type
+- Last session date
+- Database file size
+
+## Process
+1. Resolve active track from Conductor/session context.
+2. If no active track, print: "No active Conductor track. Start a track first."
+3. Use `hooks/lib/memory.js` to load DB and call `getTrackStatus()`.
+4. Compute DB size from resolved `memory.db` path.
+5. Print a concise, readable status block.
+
+## Notes
+- Do not fail hard if DB is missing/corrupt; show actionable error text.
+- Keep the report compact.
+"""
+
+[tool_config]
+mode = "AUTO"

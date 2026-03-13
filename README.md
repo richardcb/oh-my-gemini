@@ -19,6 +19,7 @@ AI agents in large codebases face two problems: they don't follow rules reliably
 | Auto-verification | "Remember to typecheck" | `after-tool` hook runs it |
 | Phase gates | "Wait for confirmation" | `phase-gate` hook advises you |
 | Context management | "Here's our project..." (every session) | Conductor persists specs, plans, and project knowledge |
+| Cross-session memory | Manual recap every session | Conductor memory + on-demand retrieval (`omg_memory_*`) |
 | Persistence | Manual retry prompts | `ralph-retry` hook forces retries |
 
 ---
@@ -109,6 +110,22 @@ The `ralph-retry` hook automatically:
 - Forces retries (up to configurable max), then escalates to user
 - Suggests the `ralph-mode` skill for structured persistence guidance
 
+### 🧠 Conductor Memory (v2.0)
+
+Track-aware memory captures key observations at phase and verification boundaries, then exposes query tools via the `omg-memory` server:
+
+- `omg_memory_search` for compact indexed retrieval
+- `omg_memory_get` for full observation hydration
+- `omg_memory_timeline` for chronological context
+- `omg_memory_drift` for checksum + git-based drift checks
+- `omg_memory_status` for quick track summaries
+
+Manual commands:
+
+- `/omg:remember`
+- `/omg:memory-status`
+- `/omg:memory-prune`
+
 ---
 
 ## Commands
@@ -122,6 +139,9 @@ The `ralph-retry` hook automatically:
 | `/omg:review` | Trigger structured code review |
 | `/omg:track` | Start a new feature track |
 | `/omg:implement` | Execute the current plan |
+| `/omg:remember` | Record a manual decision to memory |
+| `/omg:memory-status` | Show memory health for current track |
+| `/omg:memory-prune` | Prune older memory observations |
 
 ---
 
@@ -219,7 +239,8 @@ oh-my-gemini/
 
 - [Gemini CLI](https://geminicli.com) v0.31.0+
 - Google AI API key or Vertex AI credentials
-- Node.js (for hook execution)
+- Node.js (for hook execution; Node versions with built-in `node:sqlite` are recommended for memory features)
+- If your Node runtime lacks `node:sqlite`, install `better-sqlite3` to enable memory fallback
 
 ---
 
@@ -228,6 +249,7 @@ oh-my-gemini/
 - [Getting Started](docs/getting-started.md)
 - [Mode System](docs/MODES.md)
 - [Hooks Reference](docs/HOOKS.md)
+- [Memory System](docs/MEMORY.md)
 - [Conductor Workflow](conductor/README.md)
 - [Contributing](CONTRIBUTING.md)
 

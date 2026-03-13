@@ -32,7 +32,7 @@ You are the oh-my-gemini setup wizard. Your job is to configure the project for 
 !{echo "=== Existing Hooks ===" && ls .gemini/hooks/ 2>/dev/null || echo "NO_PROJECT_HOOKS"}
 ```
 
-## What oh-my-gemini v1.0 Provides
+## What oh-my-gemini Provides
 
 ### Hooks
 oh-my-gemini uses Gemini CLI's hook system for **deterministic behavior**:
@@ -43,6 +43,12 @@ oh-my-gemini uses Gemini CLI's hook system for **deterministic behavior**:
 | **BeforeAgent** | Injects relevant context (git history, current task) |
 | **BeforeTool** | Security gates, blocks dangerous ops, git checkpoints |
 | **AfterTool** | Auto-verification (typecheck, lint after code changes) |
+
+### Conductor Memory (v2.0)
+- SQLite-backed cross-session memory at `~/.oh-my-gemini/memory.db`
+- Hook-written observations (phase completion, verification failures, retries, session start)
+- On-demand retrieval via `omg_memory_*` tools
+- Manual commands: `/omg:remember`, `/omg:memory-status`, `/omg:memory-prune`
 
 ### Conductor Workflow (Optional)
 Context-Driven Development with specs and plans:
@@ -165,6 +171,20 @@ Create `.gemini/omg-config.json` to customize behavior:
 Run `/hooks panel` to see all registered hooks.
 ```
 
+### Step 5.5: Initialize Memory System (recommended)
+After base setup, initialize memory:
+1. Ensure `~/.oh-my-gemini/` exists
+2. Initialize `memory.db` by loading `hooks/lib/memory.js` and calling `initDatabase()`
+3. Explain that `session-start` auto-starts the memory MCP server when `memory.autoStart: true`
+4. Mention optional MCP settings in `mcp/servers.json` for external servers
+
+Then print:
+```
+Memory initialized:
+- DB: ~/.oh-my-gemini/memory.db
+- Auto-start MCP: enabled (configurable via .gemini/omg-config.json)
+```
+
 ### Step 6: Verify & Confirm
 
 After creating files, verify they exist:
@@ -190,7 +210,8 @@ Next steps:
 1. Review and customize GEMINI.md
 2. Run `/hooks panel` to verify hooks are active
 3. [If Conductor] Run `/omg:track "your first feature"` to start planning
-4. [If Autopilot] Just describe what you want to build!
+4. [Memory] Use `/omg:memory-status` to inspect memory health
+5. [If Autopilot] Just describe what you want to build!
 
 Run `/omg:status` anytime to see your current state.
 ```

@@ -1,0 +1,28 @@
+# /omg:remember - Record a decision in Conductor memory
+
+description = "Record a manual decision for the active Conductor track in memory.db."
+
+prompt = """
+You are recording a manual memory observation (`decision`) for the active Conductor track.
+
+## Goal
+Store a human decision/rationale so future sessions can query it via `omg_memory_search`.
+
+## Steps
+1. Determine the active track from Conductor/session context.
+2. Extract the decision text from the user's command text.
+3. If no active track exists, clearly report: "No active Conductor track. Start a track first."
+4. If decision text is empty, ask the user for the decision text.
+5. Write to memory using Node + `hooks/lib/memory.js`:
+   - `initDatabase()`
+   - `writeObservation(... type: 'decision' ...)`
+   - `closeDatabase()`
+6. Confirm success:
+   `Recorded: {decision text} on track {trackName}`
+
+## Output
+Keep output concise: either a clear error or a success confirmation.
+"""
+
+[tool_config]
+mode = "AUTO"
