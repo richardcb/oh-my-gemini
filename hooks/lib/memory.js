@@ -546,9 +546,25 @@ function computeFileChecksums(projectRoot, files = []) {
   const normalizedFiles = [...new Set(files.map(normalizeRelative).filter(Boolean))];
   const checksums = {};
   const missing = [];
+  const rootResolved = path.resolve(projectRoot);
 
   for (const relPath of normalizedFiles) {
-    const absPath = path.join(projectRoot, relPath.split('/').join(path.sep));
+    const candidatePath = relPath.split('/').join(path.sep);
+
+    // Reject absolute paths (POSIX or Windows) outright.
+    if (path.isAbsolute(candidatePath)) {
+      missing.push(relPath);
+      continue;
+    }
+
+    const absPath = path.resolve(rootResolved, candidatePath);
+
+    // Ensure the resolved path is within the project root to prevent directory traversal.
+    if (absPath !== rootResolved && !absPath.startsWith(rootResolved + path.sep)) {
+      missing.push(relPath);
+      continue;
+    }
+
     if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
       missing.push(relPath);
       continue;
