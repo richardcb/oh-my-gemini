@@ -127,6 +127,15 @@
       "fileCount": 10
     }
   },
+
+  "memory": {
+    "enabled": true,
+    "dbPath": "~/.oh-my-gemini/memory.db",
+    "mcpPort": 37888,
+    "maxObservationsPerTrack": 500,
+    "checksumFiles": "auto",
+    "autoStart": true
+  },
   
   "debug": {
     "enabled": false,

@@ -25,12 +25,14 @@ const {
   log,
   debug,
   findProjectRoot,
+  loadSessionOrGlobalPlan,
   runNpmCommand,
   shouldVerify,
   hasScript,
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+const { initDatabase, closeDatabase, writeObservation } = require('./lib/memory');
 
 // Import mode state and config for mode-aware verification
 let readModeState, composeModeProfile;
@@ -372,6 +374,60 @@ async function main() {
                              (lintResult && !lintResult.skipped);
     if (hasActualResults) {
       writeVerificationState(projectRoot, sessionId, typecheckResult, lintResult);
+    }
+
+    // --- Memory observation write (PRD 0007) ---
+    if (isFeatureEnabled(config, 'memory')) {
+      try {
+        const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+        if (conductor && conductor.active) {
+          const failures = [];
+          if (typecheckResult && !typecheckResult.skipped && !typecheckResult.success) {
+            failures.push({
+              checkType: 'typecheck',
+              summary: (typecheckResult.output || '').substring(0, 500),
+              passed: false
+            });
+          }
+          if (lintResult && !lintResult.skipped && lintResult.hasLintErrors) {
+            failures.push({
+              checkType: 'lint',
+              summary: (lintResult.output || '').substring(0, 500),
+              passed: false
+            });
+          }
+
+          if (failures.length > 0) {
+            const signature = failures
+              .map(f => `${f.checkType}:${f.summary}`)
+              .join('|')
+              .substring(0, 500);
+            const memoryConfig = getConfigValue(config, 'memory', {});
+            const db = initDatabase(memoryConfig.dbPath);
+            try {
+              writeObservation(db, {
+                track_id: conductor.trackName,
+                phase: null,
+                type: 'verification_failure',
+                agent_role: 'main',
+                content: {
+                  signature,
+                  file: filePath,
+                  failures,
+                  summary: failures.map(f => `${f.checkType}: ${f.summary}`).join(' | ').substring(0, 600)
+                },
+                created_at: new Date().toISOString()
+              }, {
+                maxObservationsPerTrack: memoryConfig.maxObservationsPerTrack
+              });
+            } finally {
+              closeDatabase(db);
+            }
+          }
+        }
+      } catch (memoryErr) {
+        log(`AfterTool memory write skipped: ${memoryErr.message}`);
+      }
     }
 
     // --- Build Output (dual-channel for masking compatibility) ---

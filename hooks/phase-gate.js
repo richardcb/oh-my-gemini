@@ -18,6 +18,7 @@
  */
 
 const path = require('path');
+const fs = require('fs');
 const {
   readInput,
   writeOutput,
@@ -30,6 +31,7 @@ const {
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+const { initDatabase, closeDatabase, writeObservation } = require('./lib/memory');
 
 // Import mode state for mode-aware phase gates
 let readModeState, composeModeProfile;
@@ -127,9 +129,69 @@ async function main() {
     // Advisory-only output
     const advisory = `[omg:phase-gate] Phase ${phaseNumber}/${totalPhases}: ${phase.name} — ${remaining} task${remaining !== 1 ? 's' : ''} remaining`;
 
-    writeOutput({
+    const output = {
       systemMessage: advisory
-    });
+    };
+
+    if (isFeatureEnabled(config, 'memory')) {
+      try {
+        const memoryConfig = getConfigValue(config, 'memory', {});
+        const phaseStatePath = path.join(projectRoot, '.gemini', 'omg-state', 'memory-phase-complete.json');
+        let phaseState = {};
+        if (fs.existsSync(phaseStatePath)) {
+          phaseState = JSON.parse(fs.readFileSync(phaseStatePath, 'utf8'));
+        }
+
+        const trackKey = conductor.trackName || 'unknown-track';
+        const trackedPhases = new Set(Array.isArray(phaseState[trackKey]) ? phaseState[trackKey] : []);
+        const completedPhases = phases.filter(p => p.total > 0 && p.completed >= p.total);
+        const newCompletions = completedPhases.filter(p => !trackedPhases.has(p.name));
+
+        if (newCompletions.length > 0) {
+          const db = initDatabase(memoryConfig.dbPath);
+          try {
+            let verificationPassed = null;
+            const sessionId = input.session_id || 'default';
+            const verificationPath = path.join(projectRoot, '.gemini', 'omg-state', sessionId, 'verification.json');
+            if (fs.existsSync(verificationPath)) {
+              const verification = JSON.parse(fs.readFileSync(verificationPath, 'utf8'));
+              const tcPassed = verification?.typecheck?.passed !== false;
+              const lintPassed = verification?.lint?.passed !== false;
+              verificationPassed = tcPassed && lintPassed;
+            }
+
+            for (const completedPhase of newCompletions) {
+              writeObservation(db, {
+                track_id: trackKey,
+                phase: completedPhase.name,
+                type: 'phase_complete',
+                agent_role: 'main',
+                content: {
+                  phaseName: completedPhase.name,
+                  tasksCompleted: completedPhase.completed,
+                  tasksTotal: completedPhase.total,
+                  verificationPassed
+                },
+                created_at: new Date().toISOString()
+              }, {
+                maxObservationsPerTrack: memoryConfig.maxObservationsPerTrack
+              });
+              trackedPhases.add(completedPhase.name);
+            }
+          } finally {
+            closeDatabase(db);
+          }
+
+          fs.mkdirSync(path.dirname(phaseStatePath), { recursive: true });
+          phaseState[trackKey] = Array.from(trackedPhases);
+          fs.writeFileSync(phaseStatePath, JSON.stringify(phaseState, null, 2), 'utf8');
+        }
+      } catch (memoryErr) {
+        log(`PhaseGate memory write skipped: ${memoryErr.message}`);
+      }
+    }
+
+    writeOutput(output);
   } catch (err) {
     log(`PhaseGate hook error: ${err.message}`);
     // Don't fail the hook

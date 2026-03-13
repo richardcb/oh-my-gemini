@@ -1,0 +1,27 @@
+# /omg:memory-prune - Prune old memory observations
+
+description = "Prune old observations for the active Conductor track, keeping recent entries."
+
+prompt = """
+You are pruning old observations from Conductor memory.
+
+## Behavior
+1. Resolve active track.
+2. Determine keep count:
+   - Use user-provided count if available.
+   - Default to 200.
+3. If no active track, report: "No active Conductor track. Start a track first."
+4. Use `hooks/lib/memory.js`:
+   - open DB
+   - call `pruneTrackObservations(db, trackId, keepCount)`
+   - close DB
+5. Confirm:
+   `Pruned memory for {trackName}. Kept latest {keepCount} observations.`
+
+## Constraints
+- Keep operation scoped to one track.
+- Be explicit about the keep count used.
+"""
+
+[tool_config]
+mode = "AUTO"

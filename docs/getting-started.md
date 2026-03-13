@@ -50,6 +50,9 @@ Just start using it:
 | `/omg:status` | Show current state |
 | `/omg:track` | Start a new feature track |
 | `/omg:implement` | Execute the current plan |
+| `/omg:remember` | Save a manual decision to Conductor memory |
+| `/omg:memory-status` | Show memory summary for active track |
+| `/omg:memory-prune` | Prune older memory observations |
 
 ## Workflow Modes
 

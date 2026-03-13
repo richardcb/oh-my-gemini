@@ -34,6 +34,7 @@ const {
   platform
 } = require('./lib/utils');
 const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+const { initDatabase, closeDatabase, getObservationCount } = require('./lib/memory');
 
 // Import keyword registry from compiled TypeScript (with fallback)
 let detectMagicKeywords, detectRalphKeywords;
@@ -213,6 +214,22 @@ async function main() {
             }
           }
         }
+      }
+    }
+
+    // --- Memory hint injection (PRD 0007) ---
+    if (isFeatureEnabled(config, 'memory') && conductor && conductor.active) {
+      try {
+        const memoryConfig = getConfigValue(config, 'memory', {});
+        const db = initDatabase(memoryConfig.dbPath);
+        try {
+          const memoryCount = getObservationCount(db, conductor.trackName);
+          additionalContext += `Track '${conductor.trackName}' has ${memoryCount} memory observations. Use omg_memory_search to query history.\n\n`;
+        } finally {
+          closeDatabase(db);
+        }
+      } catch (memoryErr) {
+        log(`BeforeAgent memory hint skipped: ${memoryErr.message}`);
       }
     }
 

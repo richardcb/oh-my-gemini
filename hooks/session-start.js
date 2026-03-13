@@ -4,21 +4,14 @@
  *
  * Event: SessionStart
  * Fires: When a new Gemini CLI session begins
- *
- * Purpose:
- * - Detect active Conductor tracks and show progress
- * - Display welcome message with current state
- * - Initialize session context
- *
- * Input: { session_id, session_type, cwd, ... }
- * Output: { hookSpecificOutput: { additionalContext }, systemMessage? }
- * 
- * Cross-platform compatible (Windows/macOS/Linux)
  */
 
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const net = require('net');
+const http = require('http');
+const { spawn } = require('child_process');
 const {
   readInput,
   writeOutput,
@@ -29,9 +22,18 @@ const {
   findCurrentTask,
   isGitRepo,
   hasUncommittedChanges,
+  runGitCommand,
+  extractFileReferences,
   platform
 } = require('./lib/utils');
-const { loadConfig, isFeatureEnabled } = require('./lib/config');
+const { loadConfig, isFeatureEnabled, getConfigValue } = require('./lib/config');
+const {
+  initDatabase,
+  closeDatabase,
+  writeObservation,
+  getObservationCount,
+  computeFileChecksums
+} = require('./lib/memory');
 
 // Import mode state for stale cleanup
 let cleanStaleState;
@@ -43,71 +45,247 @@ try {
   cleanStaleState = null;
 }
 
-/**
- * Ensure .gemini/.gitignore contains omg-state/ entry.
- * Creates the file if missing; appends if entry not present.
- * @param {string} projectRoot - Project root directory
- */
 function ensureOmgStateGitignored(projectRoot) {
   const gitignorePath = path.join(projectRoot, '.gemini', '.gitignore');
 
   try {
     const geminiDir = path.join(projectRoot, '.gemini');
     if (!fs.existsSync(geminiDir)) {
-      // No .gemini dir, nothing to gitignore
       return;
     }
 
     if (fs.existsSync(gitignorePath)) {
       const content = fs.readFileSync(gitignorePath, 'utf8');
       if (content.includes('omg-state/')) {
-        return; // Already present
+        return;
       }
-      // Append
       const separator = content.endsWith('\n') ? '' : '\n';
       fs.writeFileSync(gitignorePath, content + separator + 'omg-state/\n', 'utf8');
-      debug('ensureOmgStateGitignored: appended omg-state/ to .gemini/.gitignore');
     } else {
-      // Create
       fs.writeFileSync(gitignorePath, 'omg-state/\n', 'utf8');
-      debug('ensureOmgStateGitignored: created .gemini/.gitignore with omg-state/');
     }
   } catch (err) {
     log(`ensureOmgStateGitignored: failed: ${err.message}`);
   }
 }
 
-/**
- * Format progress bar
- * @param {number} percentage - Progress percentage (0-100)
- * @param {number} width - Bar width in characters
- * @returns {string} Formatted progress bar
- */
 function formatProgressBar(percentage, width = 20) {
-  const filled = Math.round((percentage / 100) * width);
+  const safePercentage = Number.isFinite(percentage) ? percentage : 0;
+  const filled = Math.round((safePercentage / 100) * width);
   const empty = width - filled;
-  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${percentage}%`;
+  return `[${'█'.repeat(filled)}${'░'.repeat(empty)}] ${safePercentage}%`;
 }
 
-/**
- * Build full context for fresh sessions (start/clear).
- * Loads Conductor state, git status, and builds detailed additionalContext.
- * @param {string} sessionId - Session identifier
- * @param {string} projectRoot - Project root directory
- * @param {object} config - Loaded configuration
- * @returns {{ additionalContext: string, conductorSummary: string }}
- */
+function getMemoryCount(trackName, config) {
+  if (!isFeatureEnabled(config, 'memory')) {
+    return null;
+  }
+  if (!trackName) {
+    return null;
+  }
+
+  try {
+    const memoryConfig = getConfigValue(config, 'memory', {});
+    const db = initDatabase(memoryConfig.dbPath);
+    try {
+      return getObservationCount(db, trackName);
+    } finally {
+      closeDatabase(db);
+    }
+  } catch (err) {
+    log(`Memory count query failed: ${err.message}`);
+    return null;
+  }
+}
+
+function normalizeRelativePath(inputPath) {
+  return String(inputPath || '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '')
+    .trim();
+}
+
+function collectTrackedFiles(memoryConfig, projectRoot, planContent) {
+  const checksumFiles = memoryConfig.checksumFiles;
+  let files = [];
+
+  if (checksumFiles === 'git') {
+    const gitFiles = runGitCommand(['ls-files'], { cwd: projectRoot, timeout: 10000 });
+    if (gitFiles.success) {
+      files = gitFiles.output.trim().split('\n').filter(Boolean);
+    }
+  } else if (Array.isArray(checksumFiles)) {
+    for (const candidate of checksumFiles) {
+      if (!candidate || typeof candidate !== 'string') continue;
+      const trimmed = candidate.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.includes('*') || trimmed.includes('?')) {
+        const result = runGitCommand(['ls-files', trimmed], { cwd: projectRoot, timeout: 10000 });
+        if (result.success) {
+          files.push(...result.output.trim().split('\n').filter(Boolean));
+        }
+      } else {
+        files.push(trimmed);
+      }
+    }
+  } else {
+    files = extractFileReferences(planContent || '');
+  }
+
+  return [...new Set(files.map(normalizeRelativePath).filter(Boolean))];
+}
+
+function writeSessionStartObservation(projectRoot, sessionType, sessionId, conductor, config) {
+  if (!isFeatureEnabled(config, 'memory')) {
+    return;
+  }
+  if (!conductor || !conductor.active || !conductor.trackName) {
+    return;
+  }
+
+  const memoryConfig = getConfigValue(config, 'memory', {});
+  const trackedFiles = collectTrackedFiles(memoryConfig, projectRoot, conductor.plan || '');
+  const checksumResult = computeFileChecksums(projectRoot, trackedFiles);
+
+  const db = initDatabase(memoryConfig.dbPath);
+  try {
+    writeObservation(db, {
+      track_id: conductor.trackName,
+      type: 'session_start',
+      agent_role: 'main',
+      content: {
+        sessionId,
+        sessionType,
+        trackedFiles,
+        fileChecksums: checksumResult.checksums,
+        missingFiles: checksumResult.missing
+      },
+      file_checksums: checksumResult.checksums,
+      created_at: new Date().toISOString()
+    }, {
+      maxObservationsPerTrack: memoryConfig.maxObservationsPerTrack
+    });
+  } finally {
+    closeDatabase(db);
+  }
+}
+
+function isPortOpen(port) {
+  return new Promise((resolve) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port });
+    socket.setTimeout(250);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on('error', () => {
+      resolve(false);
+    });
+  });
+}
+
+function checkHealth(port) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: '/health',
+      method: 'GET',
+      timeout: 300
+    }, (res) => {
+      resolve(res.statusCode === 200);
+      res.resume();
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+async function waitForHealth(port, timeoutMs = 2000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await checkHealth(port)) {
+      return true;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return false;
+}
+
+async function ensureMemoryServer(projectRoot, config) {
+  if (!isFeatureEnabled(config, 'memory')) {
+    return null;
+  }
+
+  const memoryConfig = getConfigValue(config, 'memory', {});
+  if (memoryConfig.autoStart === false) {
+    return null;
+  }
+
+  const basePort = Math.max(1024, Math.min(memoryConfig.mcpPort || 37888, 65535));
+  const scriptPath = path.join(__dirname, 'omg-memory-server.js');
+  if (!fs.existsSync(scriptPath)) {
+    return null;
+  }
+
+  for (let offset = 0; offset < 10; offset++) {
+    const port = basePort + offset;
+    // eslint-disable-next-line no-await-in-loop
+    const occupied = await isPortOpen(port);
+    if (occupied) {
+      // eslint-disable-next-line no-await-in-loop
+      const healthy = await checkHealth(port);
+      if (healthy) {
+        return { running: true, port, started: false };
+      }
+      continue;
+    }
+
+    const child = spawn(process.execPath, [scriptPath, '--port', String(port), '--db', String(memoryConfig.dbPath || '')], {
+      cwd: projectRoot,
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    child.unref();
+
+    // eslint-disable-next-line no-await-in-loop
+    const ready = await waitForHealth(port, 2000);
+    if (ready) {
+      const pidPath = path.join(platform.getHomeDir(), '.oh-my-gemini', 'memory.pid');
+      try {
+        fs.mkdirSync(path.dirname(pidPath), { recursive: true });
+        fs.writeFileSync(pidPath, String(child.pid), 'utf8');
+      } catch {
+        // Non-fatal
+      }
+      return { running: true, port, started: true, pid: child.pid };
+    }
+  }
+
+  return { running: false };
+}
+
 function buildFullContext(sessionId, projectRoot, config) {
   let additionalContext = '';
   let conductorSummary = '';
+  let conductor = null;
 
-  // --- Conductor State ---
   if (isFeatureEnabled(config, 'contextInjection')) {
-    const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+    conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
 
     if (conductor && conductor.active) {
-      log(`Conductor active: ${conductor.trackName}`);
-
       const planLabel = conductor.source === 'global'
         ? 'Active (global)'
         : `Active (session ${sessionId})`;
@@ -123,11 +301,16 @@ function buildFullContext(sessionId, projectRoot, config) {
         additionalContext += `**Current Task:** ${currentTask}\n\n`;
       }
 
+      const observationCount = getMemoryCount(conductor.trackName, config);
+      if (observationCount !== null) {
+        additionalContext += '## Memory\n';
+        additionalContext += `Track '${conductor.trackName}' has ${observationCount} memory observations. Use omg_memory_search to query history.\n\n`;
+      }
+
       conductorSummary = `Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
     }
   }
 
-  // --- Subagent Routing Prerequisite Check ---
   try {
     const homeDir = os.homedir();
     const settingsPath = path.join(homeDir, '.gemini', 'settings.json');
@@ -140,11 +323,9 @@ function buildFullContext(sessionId, projectRoot, config) {
       }
     }
   } catch (err) {
-    // Silently skip — missing or unparseable settings.json is fine
     debug(`Settings check skipped: ${err.message}`);
   }
 
-  // --- Git Status ---
   if (isGitRepo(projectRoot)) {
     const hasChanges = hasUncommittedChanges(projectRoot);
     if (hasChanges) {
@@ -153,40 +334,32 @@ function buildFullContext(sessionId, projectRoot, config) {
     }
   }
 
-  return { additionalContext, conductorSummary };
+  return { additionalContext, conductorSummary, conductor };
 }
 
-/**
- * Build concise context for resumed sessions.
- * Skips full Conductor state load since the session already has context.
- * Only provides a brief status line.
- * @param {string} sessionId - Session identifier
- * @param {string} projectRoot - Project root directory
- * @param {object} config - Loaded configuration
- * @returns {{ conductorSummary: string }}
- */
 function buildResumeContext(sessionId, projectRoot, config) {
   let conductorSummary = '';
+  let conductor = null;
+  let memorySummary = '';
 
-  // Only load a lightweight Conductor summary for the status line
   if (isFeatureEnabled(config, 'contextInjection')) {
     try {
-      const conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
+      conductor = loadSessionOrGlobalPlan(sessionId, projectRoot, config);
       if (conductor && conductor.active) {
         conductorSummary = `Conductor: ${conductor.trackName} (${conductor.progress.percentage}% complete)`;
+        const observationCount = getMemoryCount(conductor.trackName, config);
+        if (observationCount !== null) {
+          memorySummary = `Memory: ${observationCount} observations`;
+        }
       }
     } catch (err) {
-      // Don't fail resumed sessions for Conductor read errors
       log(`Resume context: Conductor read skipped: ${err.message}`);
     }
   }
 
-  return { conductorSummary };
+  return { conductorSummary, conductor, memorySummary };
 }
 
-/**
- * Main hook logic
- */
 async function main() {
   try {
     const input = await readInput();
@@ -197,13 +370,9 @@ async function main() {
     log(`SessionStart hook fired. CWD: ${cwd}, Type: ${sessionType}`);
     log(`Platform: ${platform.isWindows ? 'Windows' : 'Unix'}`);
 
-    // Find project root
     const projectRoot = findProjectRoot(cwd);
-
-    // Load configuration
     const config = loadConfig(projectRoot);
 
-    // --- Gitignore and stale cleanup (fresh sessions only) ---
     if (sessionType !== 'resume') {
       ensureOmgStateGitignored(projectRoot);
 
@@ -219,24 +388,44 @@ async function main() {
       }
     }
 
-    // Build context based on session type
     const output = {};
     let systemMessage = '';
 
     if (sessionType === 'resume') {
-      // Resumed sessions: skip full state load, show concise message
-      const { conductorSummary } = buildResumeContext(sessionId, projectRoot, config);
-      systemMessage = conductorSummary
-        ? `Session resumed | ${conductorSummary}`
-        : 'Session resumed';
+      const { conductorSummary, memorySummary } = buildResumeContext(sessionId, projectRoot, config);
+      const parts = ['Session resumed'];
+      if (conductorSummary) parts.push(conductorSummary);
+      if (memorySummary) parts.push(memorySummary);
+      systemMessage = parts.join(' | ');
     } else {
-      // Fresh sessions (start/clear): load full context
-      const { additionalContext, conductorSummary } = buildFullContext(sessionId, projectRoot, config);
+      const { additionalContext, conductorSummary, conductor } = buildFullContext(sessionId, projectRoot, config);
 
       if (additionalContext.trim()) {
         output.hookSpecificOutput = {
           additionalContext: additionalContext.trim()
         };
+      }
+
+      if (conductor && conductor.active && isFeatureEnabled(config, 'memory')) {
+        try {
+          writeSessionStartObservation(projectRoot, sessionType, sessionId, conductor, config);
+        } catch (memoryErr) {
+          log(`SessionStart memory write skipped: ${memoryErr.message}`);
+        }
+
+        try {
+          const serverStatus = await ensureMemoryServer(projectRoot, config);
+          if (serverStatus && serverStatus.running) {
+            const serverNote = serverStatus.started
+              ? `Memory MCP started on :${serverStatus.port}`
+              : `Memory MCP on :${serverStatus.port}`;
+            output.systemMessage = output.systemMessage
+              ? `${output.systemMessage} | ${serverNote}`
+              : serverNote;
+          }
+        } catch (serverErr) {
+          log(`Memory MCP auto-start skipped: ${serverErr.message}`);
+        }
       }
 
       if (sessionType === 'clear') {
@@ -251,13 +440,14 @@ async function main() {
     }
 
     if (systemMessage) {
-      output.systemMessage = systemMessage;
+      output.systemMessage = output.systemMessage
+        ? `${output.systemMessage} | ${systemMessage}`
+        : systemMessage;
     }
 
     writeOutput(output);
   } catch (err) {
     log(`SessionStart hook error: ${err.message}`);
-    // Don't fail the hook - just output empty response
     writeOutput({});
   }
 }

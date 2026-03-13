@@ -33,6 +33,8 @@ Hooks are scripts that execute at specific points in Gemini CLI's lifecycle. The
 - Clean stale session state directories (> 24h)
 - Ensure `.gemini/.gitignore` includes `omg-state/`
 - Check `experimental.enableAgents` prerequisite
+- Write `session_start` memory observations with file checksums
+- Auto-start `omg-memory-server` when memory is enabled
 
 **Session-Aware Plan Loading (v0.30.0):**
 The hook now attempts to load a session-specific plan before falling back to the global Conductor plan. It checks:
@@ -66,6 +68,7 @@ oh-my-gemini ready | Modes: keyword-driven | Conductor: User Authentication (45%
 - Resolve the active mode from Magic Keywords (via keyword registry)
 - Persist mode state to `.gemini/omg-state/{session}/mode.json` for downstream hooks
 - Inject context (git history, Conductor state, recent changes) per mode profile
+- Inject memory hint with observation count for the active track
 - Suggest skills via `systemMessage` based on mode and Ralph keywords
 - Detect Ralph keywords and suggest the `ralph-mode` skill
 
@@ -262,6 +265,7 @@ When a dangerous operation is detected, the hook returns:
 - Run lint after code files
 - Inject errors into context
 - Write verification state to `.gemini/omg-state/{session}/verification.json` for Ralph v2
+- Write `verification_failure` memory observations when checks fail
 - Adjust verification intensity per active mode profile
 
 **Mode-Aware Verification:**
@@ -319,6 +323,7 @@ This file is read by `ralph-retry.js` to validate agent success claims against a
 - Inject advisory guidance via `systemMessage`
 - Session-aware plan loading
 - Uses shared `parsePhases()` and `findCurrentPhase()` from `hooks/lib/utils.js`
+- Write `phase_complete` memory observations when new phase completions are detected
 
 **Verification Mode:**
 
@@ -351,6 +356,7 @@ Uses `resolveSessionPlanPath()` to check for session-specific plan files before 
 - Track error signatures for stuck detection
 - Generate error-aware retry messages with actual error details
 - Force retry up to N attempts, then escalate to user
+- Write memory observations for `retry_attempt` and `stuck_escalation`
 
 **Activation:**
 Include any of these keywords in your prompt:
@@ -512,6 +518,15 @@ Configuration is loaded with cascading priority:
       "onKeywords": ["continue", "resume", "where were we", "pick up", "last time"],
       "fileCount": 10
     }
+  },
+
+  "memory": {
+    "enabled": true,
+    "dbPath": "~/.oh-my-gemini/memory.db",
+    "mcpPort": 37888,
+    "maxObservationsPerTrack": 500,
+    "checksumFiles": "auto",
+    "autoStart": true
   }
 }
 ```
@@ -565,6 +580,13 @@ Configuration is loaded with cascading priority:
 1. Check `.gemini/omg-state/{session}/verification.json` — if stale (> 5 min), it will be ignored
 2. Ensure typecheck and lint actually pass: `npm run typecheck && npm run lint`
 3. If in research/plan mode, verification is automatically skipped
+
+### Memory Not Available
+
+1. Check `memory.enabled` in `.gemini/omg-config.json`
+2. Confirm `~/.oh-my-gemini/memory.db` exists and is writable
+3. Verify `GET http://127.0.0.1:37888/health` (or configured port) when auto-start is enabled
+4. If your Node runtime lacks `node:sqlite`, memory writes will fail-open and hooks still continue
 
 ---
 
@@ -663,6 +685,18 @@ If masking causes context loss, add `"toolOutputMasking": false` to `.gemini/set
 See `docs/decisions/masking-compatibility.md` for full investigation details.
 
 ## Changelog
+
+### v2.0.0 (Conductor Memory System)
+
+#### Conductor Memory (PRD 0007)
+- Added `hooks/lib/memory.js`: SQLite schema, observation CRUD, FTS search, timeline, status, checksum and drift helpers
+- Added `hooks/omg-memory-server.js` with tools: `omg_memory_search`, `omg_memory_timeline`, `omg_memory_get`, `omg_memory_drift`, `omg_memory_status`
+- `session-start.js`: writes `session_start` observations with checksums and auto-starts memory server
+- `before-agent.js`: injects lightweight memory hint with observation count
+- `phase-gate.js`: writes `phase_complete` observations
+- `after-tool.js`: writes and merges `verification_failure` observations by signature
+- `ralph-retry.js`: writes `retry_attempt` and `stuck_escalation` observations
+- Added memory config keys (`memory.*`) and memory commands (`/omg:remember`, `/omg:memory-status`, `/omg:memory-prune`)
 
 ### v1.2.0 (Surgical Context Injection)
 

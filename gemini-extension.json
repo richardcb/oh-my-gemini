@@ -95,6 +95,14 @@
       }
     ]
   },
+  "mcpServers": {
+    "omg-memory": {
+      "command": "node",
+      "args": ["${extensionPath}/hooks/omg-memory-server.js"],
+      "description": "Conductor memory tools (search, timeline, get, drift, status)",
+      "trust": true
+    }
+  },
   "configuration": {
     "phaseGates.enabled": {
       "description": "Enable Conductor phase gate detection",
@@ -165,6 +173,26 @@
       "description": "Default primary mode when no keyword is detected",
       "type": "string",
       "default": "implement"
+    },
+    "memory.enabled": {
+      "description": "Enable Conductor memory observation writes and retrieval",
+      "type": "boolean",
+      "default": true
+    },
+    "memory.mcpPort": {
+      "description": "Port for omg-memory MCP server",
+      "type": "number",
+      "default": 37888
+    },
+    "memory.maxObservationsPerTrack": {
+      "description": "Maximum observations to retain per track before pruning",
+      "type": "number",
+      "default": 500
+    },
+    "memory.autoStart": {
+      "description": "Auto-start omg-memory MCP server at session start",
+      "type": "boolean",
+      "default": true
     }
   }
 }
