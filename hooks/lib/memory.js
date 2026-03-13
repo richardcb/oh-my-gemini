@@ -188,7 +188,7 @@ function ensureTrack(db, trackId, name) {
 
 function normalizeObservationType(type) {
   if (!type) return 'decision';
-  return OBSERVATION_TYPES.has(type) ? type : type;
+  return type;
 }
 
 function toJsonString(value) {
