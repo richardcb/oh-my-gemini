@@ -541,6 +541,16 @@ async function main() {
       additionalContext += `Command: \`/omg:validate\`\n`;
     }
 
+    // --- Browser Verification (Mission 4) ---
+    const browserConfig = getConfigValue(config, 'browserVerification', { enabled: false });
+    const isUiFile = filePath.match(/\.(tsx|jsx|html|css|scss|less)$/i);
+    
+    if (browserConfig.enabled && isUiFile && !hasErrors) {
+      additionalContext += `\n### 🌐 Visual Browser Verification\n`;
+      additionalContext += `UI changes detected in \`${filePath}\`. Consider running **browser-verify** to check layout and console health.\n`;
+      additionalContext += `Command: \`/omg:browse\`\n`;
+    }
+
     // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
 
