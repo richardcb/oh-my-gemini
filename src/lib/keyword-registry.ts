@@ -36,11 +36,13 @@ const KEYWORD_ENTRIES: readonly KeywordEntry[] = [
   { pattern: /\bqf:(?:\s|$)/i, type: "primary", mode: "quickfix" },
   { pattern: /\bplan:(?:\s|$)/i, type: "primary", mode: "plan" },
   { pattern: /\bdesign:(?:\s|$)/i, type: "primary", mode: "plan" },
+  { pattern: /\bsecurity:(?:\s|$)/i, type: "primary", mode: "cso" },
 
   // Primary keywords — @-handle variants
   { pattern: /@researcher\b/i, type: "primary", mode: "research" },
   { pattern: /@architect\b/i, type: "primary", mode: "review" },
   { pattern: /@executor\b/i, type: "primary", mode: "implement" },
+  { pattern: /@cso\b/i, type: "primary", mode: "cso" },
 
   // Modifier keywords
   { pattern: /\beco:(?:\s|$)/i, type: "modifier", mode: "eco" },
