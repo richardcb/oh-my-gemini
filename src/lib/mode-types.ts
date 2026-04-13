@@ -20,6 +20,10 @@ export interface ModeState {
   modifiers: Modifier[];
   resolvedAt: string;
   source: "keyword" | "default";
+  
+  // Research metrics for the Karpathy Loop (FR-7)
+  baseline?: number | null;
+  bestMetric?: number | null;
 }
 
 // --- Context Injection Profile ---

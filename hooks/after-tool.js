@@ -194,6 +194,58 @@ function runLint(projectRoot, filePath, timeout = 30000) {
 }
 
 /**
+ * Run a benchmark and extract a numeric metric
+ * @param {string} projectRoot - Project root directory
+ * @param {string} command - Command to run
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {object} Result with success, metric, output
+ */
+function runBenchmark(projectRoot, command, timeout = 60000) {
+  const { execSync } = require('child_process');
+  try {
+    debug(`Running benchmark: ${command}`);
+    const output = execSync(command, {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      timeout,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    // Extract first number after common metric keywords
+    const match = output.match(/(?:metric|score|time|value|result|bpb|loss|accuracy)[:=]\s*([\d.]+)/i) || 
+                  output.match(/([\d.]+)(?:\s*(?:ms|s|bpb|%))/i);
+    
+    return {
+      success: true,
+      metric: match ? parseFloat(match[1]) : null,
+      output: output.trim()
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: err.stdout || err.stderr || err.message || '',
+      metric: null
+    };
+  }
+}
+
+/**
+ * Revert to the last git checkpoint
+ * @param {string} projectRoot - Project root directory
+ */
+function revertToLastCheckpoint(projectRoot) {
+  const { execSync } = require('child_process');
+  try {
+    log('Regression detected! Reverting to last git checkpoint...');
+    execSync('git reset --hard HEAD', { cwd: projectRoot });
+    return true;
+  } catch (err) {
+    debug(`Revert failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Write verification state to session-scoped state directory.
  * Schema: { lastRun: string (ISO 8601), typecheck: { passed, errorCount, summary },
  *           lint: { passed, errorCount, summary }, timestamp: number (epoch ms) }
@@ -374,6 +426,57 @@ async function main() {
                              (lintResult && !lintResult.skipped);
     if (hasActualResults) {
       writeVerificationState(projectRoot, sessionId, typecheckResult, lintResult);
+    }
+
+    // --- Metric-Driven Iteration (The Karpathy Loop) ---
+    const researchConfig = getConfigValue(config, 'research', {});
+    const isResearchMode = readModeState && readModeState(sessionId, projectRoot).primary === 'research';
+    
+    if (isResearchMode || researchConfig.enabled) {
+      const benchmarkCmd = researchConfig.command || toolInput.benchmark_command || '';
+      if (benchmarkCmd) {
+        log(`Running Karpathy Loop benchmark: ${benchmarkCmd}`);
+        const benchResult = runBenchmark(projectRoot, benchmarkCmd, researchConfig.timeout || 60000);
+        
+        if (benchResult.success && benchResult.metric !== null) {
+          const researchStatePath = path.join(projectRoot, '.gemini', 'omg-state', sessionId, 'research.json');
+          let baseline = null;
+          
+          if (fs.existsSync(researchStatePath)) {
+            try {
+              const rState = JSON.parse(fs.readFileSync(researchStatePath, 'utf8'));
+              baseline = rState.bestMetric;
+            } catch (e) { /* ignore */ }
+          }
+          
+          additionalContext += `\n### 🔬 Karpathy Loop Evaluation\n`;
+          additionalContext += `- Metric: **${benchResult.metric}**\n- Baseline: **${baseline !== null ? baseline : 'N/A'}**\n`;
+          
+          if (baseline !== null) {
+            const improvement = benchResult.metric < baseline;
+            const regression = benchResult.metric > baseline;
+            
+            if (improvement) {
+              additionalContext += `✅ **Improvement found!** New baseline recorded.\n`;
+              fs.writeFileSync(researchStatePath, JSON.stringify({ bestMetric: benchResult.metric, timestamp: Date.now() }, null, 2));
+            } else if (regression) {
+              additionalContext += `❌ **Regression detected!**\n`;
+              if (researchConfig.autoRevert !== false) {
+                const reverted = revertToLastCheckpoint(projectRoot);
+                if (reverted) {
+                  additionalContext += `⚠️ **Auto-reverted code to the previous baseline state.**\n`;
+                  hasErrors = true; 
+                }
+              }
+            } else {
+              additionalContext += `➖ No change in metric.\n`;
+            }
+          } else {
+            additionalContext += `ℹ️ Baseline established at **${benchResult.metric}**.\n`;
+            fs.writeFileSync(researchStatePath, JSON.stringify({ bestMetric: benchResult.metric, timestamp: Date.now() }, null, 2));
+          }
+        }
+      }
     }
 
     // --- Memory observation write (PRD 0007) ---
