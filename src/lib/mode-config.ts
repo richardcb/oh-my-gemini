@@ -30,6 +30,7 @@ export const VALID_PRIMARY_MODES: readonly PrimaryMode[] = [
   "review",
   "quickfix",
   "plan",
+  "cso",
 ] as const;
 
 export const VALID_MODIFIERS: readonly Modifier[] = ["eco"] as const;
@@ -124,6 +125,24 @@ export const DEFAULT_MODE_PROFILES: ModeConfigMap = {
     autoVerification: { enabled: false },
     phaseGates: { enabled: false },
     note: "tools: null means no hook-based filtering; native plan mode restrictions apply",
+  },
+
+  cso: {
+    tools: [
+      "read_file",
+      "read_many_files",
+      "list_directory",
+      "glob",
+      "grep_search",
+    ],
+    suggestedSkills: ["security-audit"],
+    contextInjection: {
+      gitHistory: true,
+      conductorState: true,
+      recentChanges: false,
+    },
+    autoVerification: { enabled: true, typecheck: true, lint: true },
+    phaseGates: { enabled: false },
   },
 
   eco: {

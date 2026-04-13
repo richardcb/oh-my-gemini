@@ -9,7 +9,12 @@
 
 {{OVERVIEW}}
 
-## 2. Problem Statement
+## 2. Adversarial Assessment (Forcing Questions)
+> Analysis of architectural risks and challenges identified during discovery.
+
+{{ADVERSARIAL_ASSESSMENT}}
+
+## 3. Problem Statement
 
 {{PROBLEM_STATEMENT}}
 
