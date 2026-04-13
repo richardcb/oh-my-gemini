@@ -1,0 +1,29 @@
+# /omg:browse - Trigger a visual browser audit
+
+description = "Invoke the browser-verify skill to perform a visual and runtime audit of the UI."
+
+prompt = """
+You are the oh-my-gemini Browser Auditor. Perform a visual verification of the application.
+
+## UI Context
+### Recent Changes
+```
+!{git diff HEAD --name-only 2>/dev/null | grep -E "\.(tsx|jsx|html|css|scss|less)$" || echo "NO_UI_CHANGES_DETECTED"}
+```
+
+### Dev Server Check
+```
+!{curl -s http://localhost:3000 >/dev/null && echo "PORT_3000_UP" || echo "PORT_3000_DOWN"}
+!{curl -s http://localhost:5173 >/dev/null && echo "PORT_5173_UP" || echo "PORT_5173_DOWN"}
+```
+
+## Instructions
+1. Activate the `browser-verify` skill.
+2. Navigate to the page containing the modified components.
+3. Verify element visibility and layout stability.
+4. Report any console errors or hydration mismatches.
+5. Provide a PASS/FAIL decision based on visual integrity.
+"""
+
+[tool_config]
+mode = "AUTO"

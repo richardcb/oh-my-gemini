@@ -77,6 +77,7 @@ Break down into logical phases following this order:
 - Verification against PRD
 - Testing (unit, integration, E2E)
 - Documentation updates
+- **Create handoff.json:** Record architectural decisions and variable names for implementation agents.
 
 ### 5. Apply AI Guardrails
 

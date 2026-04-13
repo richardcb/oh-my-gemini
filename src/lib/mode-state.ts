@@ -185,6 +185,8 @@ export function readModeState(
       modifiers: modifiers as Modifier[],
       resolvedAt: parsed.resolvedAt || "",
       source: parsed.source === "keyword" ? "keyword" : "default",
+      baseline: typeof parsed.baseline === "number" ? parsed.baseline : null,
+      bestMetric: typeof parsed.bestMetric === "number" ? parsed.bestMetric : null,
     };
   } catch (err: unknown) {
     const error = err as NodeJS.ErrnoException;
