@@ -61,6 +61,14 @@ Before writing the PRD, you **must** ask clarifying questions to gather sufficie
 - "What happens when things go wrong?"
 - "Are there any business rules that must never be violated?"
 
+### 3.5. Forcing Questions (Adversarial Phase)
+After the basic details are gathered, but BEFORE drafting the PRD, you must identify 3-5 "Forcing Questions." These are designed to challenge the user's assumptions.
+
+**Logic:**
+- Identify the 3 highest-risk areas of the proposal based on the answers gathered in Step 3.
+- Format as: *"You are proposing [X]. How will we handle [Edge Case/Risk Y]?"*
+- Refuse to draft the full PRD until these are acknowledged or answered.
+
 ### 4. Generate PRD
 
 Use the template structure to create the PRD:
