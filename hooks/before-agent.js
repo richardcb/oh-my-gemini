@@ -217,6 +217,37 @@ async function main() {
       }
     }
 
+      }
+    }
+
+    // --- Structured Handoff Injection (Mission 5) ---
+    if (conductor && conductor.active) {
+      const handoffPath = path.join(projectRoot, 'conductor', 'tracks', conductor.trackName, 'handoff.json');
+      if (fs.existsSync(handoffPath)) {
+        try {
+          const handoff = JSON.parse(fs.readFileSync(handoffPath, 'utf8'));
+          additionalContext += `## 💡 MANDATORY TECHNICAL CONSTRAINTS (handoff.json)\n`;
+          additionalContext += `**Architectural Decisions:**\n`;
+          for (const [key, val] of Object.entries(handoff.architecturalDecisions || {})) {
+            additionalContext += `- ${key}: ${val}\n`;
+          }
+          additionalContext += `\n**Constraints:**\n`;
+          (handoff.mandatoryConstraints || []).forEach(c => additionalContext += `- ${c}\n`);
+          
+          if (handoff.variableRegistry) {
+            additionalContext += `\n**Variable Registry:**\n`;
+            for (const [key, val] of Object.entries(handoff.variableRegistry)) {
+              additionalContext += `- \`${key}\` → \`${val}\`\n`;
+            }
+          }
+          additionalContext += `\n_You MUST adhere strictly to these constraints. If a conflict arises, ask the @architect mode for clarification._\n\n`;
+          log(`Injected structured handoff for track: ${conductor.trackName}`);
+        } catch (e) {
+          debug(`Failed to parse handoff.json: ${e.message}`);
+        }
+      }
+    }
+
     // --- Memory hint injection (PRD 0007) ---
     if (isFeatureEnabled(config, 'memory') && conductor && conductor.active) {
       try {
