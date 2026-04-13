@@ -193,6 +193,16 @@
       "description": "Auto-start omg-memory MCP server at session start",
       "type": "boolean",
       "default": true
+    },
+    "adversarialReview.enabled": {
+      "description": "Suggest an adversarial audit by @validator when code is modified",
+      "type": "boolean",
+      "default": false
+    },
+    "browserVerification.enabled": {
+      "description": "Suggest visual browser verification via browser-verify for UI changes",
+      "type": "boolean",
+      "default": false
     }
   }
 }
