@@ -7,7 +7,7 @@
 
 // --- Primary Modes ---
 
-export type PrimaryMode = "research" | "implement" | "review" | "quickfix" | "plan";
+export type PrimaryMode = "research" | "implement" | "review" | "quickfix" | "plan" | "cso";
 
 // --- Modifiers ---
 

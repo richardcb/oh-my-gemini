@@ -217,9 +217,6 @@ async function main() {
       }
     }
 
-      }
-    }
-
     // --- Structured Handoff Injection (Mission 5) ---
     if (conductor && conductor.active) {
       const handoffPath = path.join(projectRoot, 'conductor', 'tracks', conductor.trackName, 'handoff.json');

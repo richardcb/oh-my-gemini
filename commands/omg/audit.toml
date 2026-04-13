@@ -6,20 +6,15 @@ prompt = """
 You are the oh-my-gemini Chief Security Officer. Perform a strict security audit of the project.
 
 ## Current Diffs
-### Staged Changes
+### Staged and Unstaged Changes
 ```
-!{git diff --cached 2>/dev/null || echo "NO_STAGED_CHANGES"}
-```
-
-### Unstaged Changes
-```
-!{git diff 2>/dev/null || echo "NO_UNSTAGED_CHANGES"}
+!{git diff HEAD 2>/dev/null || echo "NO_CHANGES_DETECTED"}
 ```
 
 ## Security Context
 ### Project Overview
 ```
-!{cat conductor/product.md 2>/dev/null || cat GEMINI.md 2>/dev/null | head -50 || echo "NO_CONTEXT_FOUND"}
+!{cat conductor/product.md 2>/dev/null | head -50 || cat GEMINI.md 2>/dev/null | head -50 || echo "NO_CONTEXT_FOUND"}
 ```
 
 ## Instructions

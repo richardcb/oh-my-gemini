@@ -9,31 +9,31 @@ You are the oh-my-gemini Status Reporter. Generate a high-signal dashboard using
 
 ### Metric Tracking
 ```
-!{cat .gemini/omg-state/*/research.json 2>/dev/null || echo "NO_RESEARCH_METRICS"}
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}research.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
 ```
 
 ### Mode State
 ```
-!{cat .gemini/omg-state/*/mode.json 2>/dev/null || echo "NO_MODE_STATE"}
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}mode.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
 ```
 
 ### Conductor Progress
 ```
-!{cat conductor/tracks.md 2>/dev/null | head -20 || echo "NO_CONDUCTOR"}
+!{cat conductor/tracks.md 2>/dev/null | head -30 || echo "NO_CONDUCTOR"}
 ```
 
 ### Persistence Health
 ```
-!{cat .gemini/omg-state/*/ralph.json 2>/dev/null || echo "NO_RALPH_STATE"}
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}ralph.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
 ```
 
 ## Dashboard Report Structure
 
 ### 1. Active Research Session
-- **Target:** [From active track or research.json]
-- **Baseline:** [Value from research.json]
-- **Best Metric:** [Value from research.json]
-- **Status:** [Calculate Improvement % if possible]
+- **Target:** [Identify from active track or state]
+- **Baseline:** [Best Metric from research.json]
+- **Current:** [Last Metric from research.json]
+- **Status:** [Calculate Improvement %]
 
 ### 2. Conductor Status
 - **Progress:** [Summarize from tracks.md]

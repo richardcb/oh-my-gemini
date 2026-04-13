@@ -230,18 +230,46 @@ function runBenchmark(projectRoot, command, timeout = 60000) {
 }
 
 /**
- * Revert to the last git checkpoint
+ * Revert a specific file to the last git checkpoint
  * @param {string} projectRoot - Project root directory
+ * @param {string} filePath - Path to the file to revert
  */
-function revertToLastCheckpoint(projectRoot) {
+function revertFile(projectRoot, filePath) {
   const { execSync } = require('child_process');
   try {
-    log('Regression detected! Reverting to last git checkpoint...');
-    execSync('git reset --hard HEAD', { cwd: projectRoot });
+    log(`Regression detected! Reverting ${filePath} to last git checkpoint...`);
+    // Use checkout HEAD -- [file] to avoid losing other uncommitted progress
+    execSync(`git checkout HEAD -- "${filePath}"`, { cwd: projectRoot });
     return true;
   } catch (err) {
-    debug(`Revert failed: ${err.message}`);
+    debug(`Revert failed for ${filePath}: ${err.message}`);
     return false;
+  }
+}
+
+/**
+ * Write research state atomically to session-scoped state directory.
+ * @param {string} projectRoot - Project root directory
+ * @param {string} sessionId - Session identifier
+ * @param {object} state - Research state to write
+ */
+function writeResearchState(projectRoot, sessionId, state) {
+  try {
+    const dir = path.join(projectRoot, '.gemini', 'omg-state', sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    
+    const finalPath = path.join(dir, 'research.json');
+    const tmpPath = finalPath + '.tmp';
+    
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2));
+    try {
+      fs.renameSync(tmpPath, finalPath);
+    } catch {
+      fs.writeFileSync(finalPath, JSON.stringify(state, null, 2));
+      try { fs.unlinkSync(tmpPath); } catch { /* ignore cleanup failure */ }
+    }
+  } catch (err) {
+    debug(`writeResearchState failed: ${err.message}`);
   }
 }
 
@@ -453,18 +481,19 @@ async function main() {
           additionalContext += `- Metric: **${benchResult.metric}**\n- Baseline: **${baseline !== null ? baseline : 'N/A'}**\n`;
           
           if (baseline !== null) {
-            const improvement = benchResult.metric < baseline;
-            const regression = benchResult.metric > baseline;
+            const direction = researchConfig.metricDirection || 'lower'; // 'lower' or 'higher'
+            const isImprovement = direction === 'higher' ? benchResult.metric > baseline : benchResult.metric < baseline;
+            const isRegression = direction === 'higher' ? benchResult.metric < baseline : benchResult.metric > baseline;
             
-            if (improvement) {
+            if (isImprovement) {
               additionalContext += `✅ **Improvement found!** New baseline recorded.\n`;
-              fs.writeFileSync(researchStatePath, JSON.stringify({ bestMetric: benchResult.metric, timestamp: Date.now() }, null, 2));
-            } else if (regression) {
+              writeResearchState(projectRoot, sessionId, { bestMetric: benchResult.metric, timestamp: Date.now() });
+            } else if (isRegression) {
               additionalContext += `❌ **Regression detected!**\n`;
               if (researchConfig.autoRevert !== false) {
-                const reverted = revertToLastCheckpoint(projectRoot);
+                const reverted = revertFile(projectRoot, filePath);
                 if (reverted) {
-                  additionalContext += `⚠️ **Auto-reverted code to the previous baseline state.**\n`;
+                  additionalContext += `⚠️ **Auto-reverted \`${filePath}\` to the previous baseline state.**\n`;
                   hasErrors = true; 
                 }
               }
@@ -472,8 +501,9 @@ async function main() {
               additionalContext += `➖ No change in metric.\n`;
             }
           } else {
+            // First run, set baseline
             additionalContext += `ℹ️ Baseline established at **${benchResult.metric}**.\n`;
-            fs.writeFileSync(researchStatePath, JSON.stringify({ bestMetric: benchResult.metric, timestamp: Date.now() }, null, 2));
+            writeResearchState(projectRoot, sessionId, { bestMetric: benchResult.metric, timestamp: Date.now() });
           }
         }
       }
@@ -562,7 +592,7 @@ async function main() {
 
     // Critical errors always go via systemMessage (survives masking)
     if (hasErrors) {
-      output.systemMessage = 'Verification found type errors — review before continuing';
+      output.systemMessage = 'Verification found issues — review before continuing';
     }
 
     writeOutput(output);

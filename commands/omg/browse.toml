@@ -8,7 +8,7 @@ You are the oh-my-gemini Browser Auditor. Perform a visual verification of the a
 ## UI Context
 ### Recent Changes
 ```
-!{git diff --name-only HEAD~1 | grep -E "\.(tsx|jsx|html|css|scss|less)$" || echo "NO_UI_CHANGES_DETECTED"}
+!{git diff HEAD --name-only 2>/dev/null | grep -E "\.(tsx|jsx|html|css|scss|less)$" || echo "NO_UI_CHANGES_DETECTED"}
 ```
 
 ### Dev Server Check
