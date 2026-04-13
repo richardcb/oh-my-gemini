@@ -533,6 +533,14 @@ async function main() {
       }
     }
 
+    // --- Adversarial Review (Mission 1) ---
+    const adversarialConfig = getConfigValue(config, 'adversarialReview', { enabled: false });
+    if (adversarialConfig.enabled && !hasErrors) {
+      additionalContext += `\n### ⚖️ Adversarial Review Suggestion\n`;
+      additionalContext += `Code changes detected. Consider running **@validator** for an independent audit before committing.\n`;
+      additionalContext += `Command: \`/omg:validate\`\n`;
+    }
+
     // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
 
