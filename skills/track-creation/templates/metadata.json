@@ -13,8 +13,9 @@
     "review": "pending"
   },
   "current_phase": "implementation",
-  "progress": {
-    "total_tasks": 0,
-    "completed_tasks": 0
+  "files": {
+    "spec": "spec.md",
+    "plan": "plan.md",
+    "handoff": "handoff.json"
   }
 }

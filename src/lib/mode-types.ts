@@ -7,7 +7,7 @@
 
 // --- Primary Modes ---
 
-export type PrimaryMode = "research" | "implement" | "review" | "quickfix" | "plan";
+export type PrimaryMode = "research" | "implement" | "review" | "quickfix" | "plan" | "cso";
 
 // --- Modifiers ---
 
@@ -20,6 +20,10 @@ export interface ModeState {
   modifiers: Modifier[];
   resolvedAt: string;
   source: "keyword" | "default";
+  
+  // Research metrics for the Karpathy Loop (FR-7)
+  baseline?: number | null;
+  bestMetric?: number | null;
 }
 
 // --- Context Injection Profile ---
