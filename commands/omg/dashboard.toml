@@ -1,0 +1,50 @@
+# /omg:dashboard - Show research metrics and track progress
+
+description = "Display current research metrics (Karpathy Loop), Conductor progress, and session health."
+
+prompt = """
+You are the oh-my-gemini Status Reporter. Generate a high-signal dashboard using the REAL data below.
+
+## Live Research Data
+
+### Metric Tracking
+```
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}research.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
+```
+
+### Mode State
+```
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}mode.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
+```
+
+### Conductor Progress
+```
+!{cat conductor/tracks.md 2>/dev/null | head -30 || echo "NO_CONDUCTOR"}
+```
+
+### Persistence Health
+```
+!{SESSION_DIR=$(ls -td .gemini/omg-state/*/ 2>/dev/null | head -1); if [ -n "$SESSION_DIR" ]; then cat "${SESSION_DIR}ralph.json" 2>/dev/null; else echo "NO_SESSION_FOUND"; fi}
+```
+
+## Dashboard Report Structure
+
+### 1. Active Research Session
+- **Target:** [Identify from active track or state]
+- **Baseline:** [Best Metric from research.json]
+- **Current:** [Last Metric from research.json]
+- **Status:** [Calculate Improvement %]
+
+### 2. Conductor Status
+- **Progress:** [Summarize from tracks.md]
+- **Active Track:** [Identify active track]
+
+### 3. Persistence (Ralph Mode)
+- **Retry Count:** [From ralph.json]
+- **Status:** [Stable / Reaching Limit]
+
+Keep the output in a clean, monospaced ASCII block format.
+"""
+
+[tool_config]
+mode = "AUTO"

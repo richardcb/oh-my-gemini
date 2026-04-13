@@ -194,6 +194,86 @@ function runLint(projectRoot, filePath, timeout = 30000) {
 }
 
 /**
+ * Run a benchmark and extract a numeric metric
+ * @param {string} projectRoot - Project root directory
+ * @param {string} command - Command to run
+ * @param {number} timeout - Timeout in milliseconds
+ * @returns {object} Result with success, metric, output
+ */
+function runBenchmark(projectRoot, command, timeout = 60000) {
+  const { execSync } = require('child_process');
+  try {
+    debug(`Running benchmark: ${command}`);
+    const output = execSync(command, {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      timeout,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    
+    // Extract first number after common metric keywords
+    const match = output.match(/(?:metric|score|time|value|result|bpb|loss|accuracy)[:=]\s*([\d.]+)/i) || 
+                  output.match(/([\d.]+)(?:\s*(?:ms|s|bpb|%))/i);
+    
+    return {
+      success: true,
+      metric: match ? parseFloat(match[1]) : null,
+      output: output.trim()
+    };
+  } catch (err) {
+    return {
+      success: false,
+      output: err.stdout || err.stderr || err.message || '',
+      metric: null
+    };
+  }
+}
+
+/**
+ * Revert a specific file to the last git checkpoint
+ * @param {string} projectRoot - Project root directory
+ * @param {string} filePath - Path to the file to revert
+ */
+function revertFile(projectRoot, filePath) {
+  const { execSync } = require('child_process');
+  try {
+    log(`Regression detected! Reverting ${filePath} to last git checkpoint...`);
+    // Use checkout HEAD -- [file] to avoid losing other uncommitted progress
+    execSync(`git checkout HEAD -- "${filePath}"`, { cwd: projectRoot });
+    return true;
+  } catch (err) {
+    debug(`Revert failed for ${filePath}: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Write research state atomically to session-scoped state directory.
+ * @param {string} projectRoot - Project root directory
+ * @param {string} sessionId - Session identifier
+ * @param {object} state - Research state to write
+ */
+function writeResearchState(projectRoot, sessionId, state) {
+  try {
+    const dir = path.join(projectRoot, '.gemini', 'omg-state', sessionId);
+    fs.mkdirSync(dir, { recursive: true });
+    
+    const finalPath = path.join(dir, 'research.json');
+    const tmpPath = finalPath + '.tmp';
+    
+    fs.writeFileSync(tmpPath, JSON.stringify(state, null, 2));
+    try {
+      fs.renameSync(tmpPath, finalPath);
+    } catch {
+      fs.writeFileSync(finalPath, JSON.stringify(state, null, 2));
+      try { fs.unlinkSync(tmpPath); } catch { /* ignore cleanup failure */ }
+    }
+  } catch (err) {
+    debug(`writeResearchState failed: ${err.message}`);
+  }
+}
+
+/**
  * Write verification state to session-scoped state directory.
  * Schema: { lastRun: string (ISO 8601), typecheck: { passed, errorCount, summary },
  *           lint: { passed, errorCount, summary }, timestamp: number (epoch ms) }
@@ -376,6 +456,59 @@ async function main() {
       writeVerificationState(projectRoot, sessionId, typecheckResult, lintResult);
     }
 
+    // --- Metric-Driven Iteration (The Karpathy Loop) ---
+    const researchConfig = getConfigValue(config, 'research', {});
+    const isResearchMode = readModeState && readModeState(sessionId, projectRoot).primary === 'research';
+    
+    if (isResearchMode || researchConfig.enabled) {
+      const benchmarkCmd = researchConfig.command || toolInput.benchmark_command || '';
+      if (benchmarkCmd) {
+        log(`Running Karpathy Loop benchmark: ${benchmarkCmd}`);
+        const benchResult = runBenchmark(projectRoot, benchmarkCmd, researchConfig.timeout || 60000);
+        
+        if (benchResult.success && benchResult.metric !== null) {
+          const researchStatePath = path.join(projectRoot, '.gemini', 'omg-state', sessionId, 'research.json');
+          let baseline = null;
+          
+          if (fs.existsSync(researchStatePath)) {
+            try {
+              const rState = JSON.parse(fs.readFileSync(researchStatePath, 'utf8'));
+              baseline = rState.bestMetric;
+            } catch (e) { /* ignore */ }
+          }
+          
+          additionalContext += `\n### 🔬 Karpathy Loop Evaluation\n`;
+          additionalContext += `- Metric: **${benchResult.metric}**\n- Baseline: **${baseline !== null ? baseline : 'N/A'}**\n`;
+          
+          if (baseline !== null) {
+            const direction = researchConfig.metricDirection || 'lower'; // 'lower' or 'higher'
+            const isImprovement = direction === 'higher' ? benchResult.metric > baseline : benchResult.metric < baseline;
+            const isRegression = direction === 'higher' ? benchResult.metric < baseline : benchResult.metric > baseline;
+            
+            if (isImprovement) {
+              additionalContext += `✅ **Improvement found!** New baseline recorded.\n`;
+              writeResearchState(projectRoot, sessionId, { bestMetric: benchResult.metric, timestamp: Date.now() });
+            } else if (isRegression) {
+              additionalContext += `❌ **Regression detected!**\n`;
+              if (researchConfig.autoRevert !== false) {
+                const reverted = revertFile(projectRoot, filePath);
+                if (reverted) {
+                  additionalContext += `⚠️ **Auto-reverted \`${filePath}\` to the previous baseline state.**\n`;
+                  hasErrors = true; 
+                }
+              }
+            } else {
+              additionalContext += `➖ No change in metric.\n`;
+            }
+          } else {
+            // First run, set baseline
+            additionalContext += `ℹ️ Baseline established at **${benchResult.metric}**.\n`;
+            writeResearchState(projectRoot, sessionId, { bestMetric: benchResult.metric, timestamp: Date.now() });
+          }
+        }
+      }
+    }
+
     // --- Memory observation write (PRD 0007) ---
     if (isFeatureEnabled(config, 'memory')) {
       try {
@@ -430,6 +563,24 @@ async function main() {
       }
     }
 
+    // --- Adversarial Review (Mission 1) ---
+    const adversarialConfig = getConfigValue(config, 'adversarialReview', { enabled: false });
+    if (adversarialConfig.enabled && !hasErrors) {
+      additionalContext += `\n### ⚖️ Adversarial Review Suggestion\n`;
+      additionalContext += `Code changes detected. Consider running **@validator** for an independent audit before committing.\n`;
+      additionalContext += `Command: \`/omg:validate\`\n`;
+    }
+
+    // --- Browser Verification (Mission 4) ---
+    const browserConfig = getConfigValue(config, 'browserVerification', { enabled: false });
+    const isUiFile = filePath.match(/\.(tsx|jsx|html|css|scss|less)$/i);
+    
+    if (browserConfig.enabled && isUiFile && !hasErrors) {
+      additionalContext += `\n### 🌐 Visual Browser Verification\n`;
+      additionalContext += `UI changes detected in \`${filePath}\`. Consider running **browser-verify** to check layout and console health.\n`;
+      additionalContext += `Command: \`/omg:browse\`\n`;
+    }
+
     // --- Build Output (dual-channel for masking compatibility) ---
     const output = {};
 
@@ -441,7 +592,7 @@ async function main() {
 
     // Critical errors always go via systemMessage (survives masking)
     if (hasErrors) {
-      output.systemMessage = 'Verification found type errors — review before continuing';
+      output.systemMessage = 'Verification found issues — review before continuing';
     }
 
     writeOutput(output);
