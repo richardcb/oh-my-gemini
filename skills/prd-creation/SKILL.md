@@ -38,28 +38,13 @@ ls -la features/*prd*.md 2>/dev/null || ls -la docs/prds/*.md 2>/dev/null || ech
 ### 3. Ask Clarifying Questions
 Before writing the PRD, you **must** ask clarifying questions to gather sufficient detail. Group related questions and provide numbered options for easy responses.
 
-#### Problem & Goal
-- "What is the core problem this feature solves for the user?"
-- "What is the main goal we want to achieve?"
-- "Why is this important now?"
+### 3.5. Forcing Questions (Adversarial Phase)
+After the basic details are gathered, but BEFORE drafting the PRD, you must identify 3-5 "Forcing Questions." These are designed to challenge the user's assumptions.
 
-#### Target User
-- "Who is the primary user of this feature?"
-- "Are there secondary users or stakeholders?"
-
-#### Core Functionality
-- "What are the key actions a user must be able to perform?"
-- "What does success look like for this feature?"
-
-#### User Stories
-- "Could you provide a few user stories? (e.g., As a [user], I want to [action] so that [benefit].)"
-
-#### Scope Boundaries
-- "What's explicitly out of scope for this version?"
-
-#### Edge Cases & Failures
-- "What happens when things go wrong?"
-- "Are there any business rules that must never be violated?"
+**Logic:**
+- Identify the 3 highest-risk areas of the proposal (e.g., Scaling, Security, State Management).
+- Format as: *"You are proposing [X]. How will we handle [Edge Case/Risk Y]?"*
+- Refuse to draft the full PRD until these are acknowledged or answered.
 
 ### 4. Generate PRD
 
